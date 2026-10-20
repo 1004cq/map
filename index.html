@@ -10,7 +10,7 @@
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
   <style>
     :root {
-      --bg: #1a2330;
+      --bg: #02060d;
       --text: #202124;
       --muted: #5f6368;
       --border: #dadce0;
@@ -506,35 +506,43 @@
       globe.preloadWhenHidden = false;
       globe.preloadSiblings = true;
 
-      // —— 真实感：日照 + 大气散射（之前关掉会像「贴图塑料球」）——
-      scene.sun.show = true;
+      // —— 真实感：大气散射 + 始终看清影像 ——
+      // 说明：开启 globe.enableLighting 会把一半地球压成夜侧（无城市灯时很假），
+      // 地图场景更适合「全昼影像 + 真实大气边缘」，贴近谷歌地球常用观感。
+      scene.sun.show = true; // 参与大气散射计算
       scene.moon.show = false;
       scene.skyAtmosphere.show = true;
       globe.showGroundAtmosphere = true;
-      globe.enableLighting = true;
-      // 昼夜交界柔和过渡，避免生硬黑边
-      globe.lightingFadeOutDistance = 1.0e7;
-      globe.lightingFadeInDistance = 2.0e7;
-      globe.nightFadeOutDistance = 1.0e7;
-      globe.nightFadeInDistance = 2.0e7;
-      // 近地雾增加纵深，远看不过度
+      globe.enableLighting = false;
       scene.fog.enabled = true;
-      scene.fog.density = 0.0002;
-      scene.fog.minimumBrightness = 0.03;
+      scene.fog.density = 0.00015;
+      scene.fog.minimumBrightness = 0.05;
       scene.shadowMap.enabled = false;
       if (typeof scene.highDynamicRange !== "undefined") {
         scene.highDynamicRange = !isMobile;
+      }
+      // 大气边缘略加强（属性因版本可能不同，做存在性判断）
+      var atm = scene.skyAtmosphere;
+      if (atm) {
+        if ("hueShift" in atm) atm.hueShift = 0.0;
+        if ("saturationShift" in atm) atm.saturationShift = 0.08;
+        if ("brightnessShift" in atm) atm.brightnessShift = 0.08;
+        if ("atmosphereLightIntensity" in atm) atm.atmosphereLightIntensity = 20.0;
+      }
+      if ("atmosphereLightIntensity" in globe) {
+        globe.atmosphereLightIntensity = 10.0;
       }
 
       // 未加载瓦片时用接近真实洋面的深蓝，减少灰块感
       scene.backgroundColor = Cesium.Color.fromCssColorString("#02060d");
       globe.baseColor = Cesium.Color.fromCssColorString("#0b1d33");
 
-      // 卫星层轻微提亮，贴近常见地球仪观感
+      // 卫星层轻微调色，更接近肉眼卫星观感
       var satelliteImagery = viewer.imageryLayers.get(0);
-      satelliteImagery.brightness = 1.05;
-      satelliteImagery.contrast = 1.08;
-      satelliteImagery.saturation = 1.05;
+      satelliteImagery.brightness = 1.06;
+      satelliteImagery.contrast = 1.1;
+      satelliteImagery.saturation = 1.08;
+      satelliteImagery.gamma = 0.95;
 
       // 手势：旋转 / 缩放 / 倾斜
       var controller = scene.screenSpaceCameraController;
@@ -572,15 +580,6 @@
         if (roadsLayer) roadsLayer.show = false;
       }
 
-      // 街道图均匀照明更清晰；卫星/混合保留日照真实感
-      function applyLightingForLayer(key) {
-        var photo = key === "satellite" || key === "hybrid";
-        globe.enableLighting = photo;
-        scene.sun.show = photo;
-        scene.fog.enabled = photo;
-        scene.requestRender();
-      }
-
       function switchLayer(key) {
         if (key === activeKey) return;
         hideAll();
@@ -612,7 +611,6 @@
         }
 
         activeKey = key;
-        applyLightingForLayer(key);
         document.querySelectorAll("[data-layer]").forEach(function (btn) {
           btn.classList.toggle("active", btn.getAttribute("data-layer") === key);
         });
@@ -660,20 +658,18 @@
         }
       });
 
-      // ========== 初始视角：略倾斜俯视，比正对球心更接近真实地球产品 ==========
-      camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(105.0, 20.0, 1.2e7),
-        orientation: {
-          heading: Cesium.Math.toRadians(15),
-          pitch: Cesium.Math.toRadians(-55),
-          roll: 0,
-        },
-      });
-
-      // requestRenderMode 下日照仍需偶尔刷新（太阳位置变化）
-      setInterval(function () {
-        if (globe.enableLighting) scene.requestRender();
-      }, 60000);
+      // ========== 初始视角：对准东亚，略倾斜（lookAt 保证球在画面中） ==========
+      var lookTarget = Cesium.Cartesian3.fromDegrees(105.0, 32.0);
+      camera.lookAt(
+        lookTarget,
+        new Cesium.HeadingPitchRange(
+          Cesium.Math.toRadians(20),
+          Cesium.Math.toRadians(-32),
+          1.55e7
+        )
+      );
+      // 解除 lookAt 锁定，恢复自由旋转/缩放
+      camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
 
       globe.tileLoadProgressEvent.addEventListener(function (queued) {
         if (queued === 0) hideLoading();
