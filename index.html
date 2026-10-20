@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#1a2330" />
+  <meta name="theme-color" content="#02060d" />
   <title>map.cq.je</title>
   <!-- CesiumJS CDN -->
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
@@ -499,26 +499,42 @@
       var globe = scene.globe;
       var camera = viewer.camera;
 
-      // ========== 地球性能参数 ==========
-      // maximumScreenSpaceError：越大瓦片越少、越糊
-      globe.maximumScreenSpaceError = isMobile ? 4 : 2;
-      // tileCacheSize：内存瓦片缓存上限
-      globe.tileCacheSize = isMobile ? 60 : 100;
-      // preloadWhenHidden：隐藏图层不预加载
+      // ========== 地球性能 / 画质 ==========
+      // SSE 略收紧，卫星更清晰（移动端仍放宽以保流畅）
+      globe.maximumScreenSpaceError = isMobile ? 3 : 1.5;
+      globe.tileCacheSize = isMobile ? 80 : 120;
       globe.preloadWhenHidden = false;
-      globe.preloadSiblings = false;
+      globe.preloadSiblings = true;
 
-      // 轻量效果：大气开、光照/雾关
-      scene.skyAtmosphere.show = true;
-      scene.fog.enabled = false;
-      globe.enableLighting = false;
-      globe.showGroundAtmosphere = true;
+      // —— 真实感：日照 + 大气散射（之前关掉会像「贴图塑料球」）——
+      scene.sun.show = true;
       scene.moon.show = false;
-      scene.sun.show = false;
+      scene.skyAtmosphere.show = true;
+      globe.showGroundAtmosphere = true;
+      globe.enableLighting = true;
+      // 昼夜交界柔和过渡，避免生硬黑边
+      globe.lightingFadeOutDistance = 1.0e7;
+      globe.lightingFadeInDistance = 2.0e7;
+      globe.nightFadeOutDistance = 1.0e7;
+      globe.nightFadeInDistance = 2.0e7;
+      // 近地雾增加纵深，远看不过度
+      scene.fog.enabled = true;
+      scene.fog.density = 0.0002;
+      scene.fog.minimumBrightness = 0.03;
       scene.shadowMap.enabled = false;
+      if (typeof scene.highDynamicRange !== "undefined") {
+        scene.highDynamicRange = !isMobile;
+      }
 
-      scene.backgroundColor = Cesium.Color.fromCssColorString("#1a2330");
-      globe.baseColor = Cesium.Color.fromCssColorString("#2a3a4c");
+      // 未加载瓦片时用接近真实洋面的深蓝，减少灰块感
+      scene.backgroundColor = Cesium.Color.fromCssColorString("#02060d");
+      globe.baseColor = Cesium.Color.fromCssColorString("#0b1d33");
+
+      // 卫星层轻微提亮，贴近常见地球仪观感
+      var satelliteImagery = viewer.imageryLayers.get(0);
+      satelliteImagery.brightness = 1.05;
+      satelliteImagery.contrast = 1.08;
+      satelliteImagery.saturation = 1.05;
 
       // 手势：旋转 / 缩放 / 倾斜
       var controller = scene.screenSpaceCameraController;
@@ -543,15 +559,26 @@
       ];
 
       // ========== 图层：卫星 / 街道 / 混合 ==========
-      var satelliteLayer = viewer.imageryLayers.get(0);
+      var satelliteLayer = satelliteImagery;
       var streetsLayer = null;
       var labelsLayer = null;
+      var roadsLayer = null;
       var activeKey = "satellite";
 
       function hideAll() {
         satelliteLayer.show = false;
         if (streetsLayer) streetsLayer.show = false;
         if (labelsLayer) labelsLayer.show = false;
+        if (roadsLayer) roadsLayer.show = false;
+      }
+
+      // 街道图均匀照明更清晰；卫星/混合保留日照真实感
+      function applyLightingForLayer(key) {
+        var photo = key === "satellite" || key === "hybrid";
+        globe.enableLighting = photo;
+        scene.sun.show = photo;
+        scene.fog.enabled = photo;
+        scene.requestRender();
       }
 
       function switchLayer(key) {
@@ -566,15 +593,26 @@
           }
           streetsLayer.show = true;
         } else if (key === "hybrid") {
-          // 混合 = 卫星 + 注记（复用卫星层，避免重复拉影像）
+          // 混合 = 卫星 + 路网 + 地名（更接近谷歌地球混合）
           satelliteLayer.show = true;
+          if (!roadsLayer) {
+            roadsLayer = viewer.imageryLayers.addImageryProvider(
+              new Cesium.UrlTemplateImageryProvider({
+                url: esriTile("Reference/World_Transportation"),
+                credit: "© Esri",
+                maximumLevel: isMobile ? 15 : 17,
+              })
+            );
+          }
           if (!labelsLayer) {
             labelsLayer = viewer.imageryLayers.addImageryProvider(makeLabels());
           }
+          roadsLayer.show = true;
           labelsLayer.show = true;
         }
 
         activeKey = key;
+        applyLightingForLayer(key);
         document.querySelectorAll("[data-layer]").forEach(function (btn) {
           btn.classList.toggle("active", btn.getAttribute("data-layer") === key);
         });
@@ -622,15 +660,20 @@
         }
       });
 
-      // ========== 初始视角 ==========
+      // ========== 初始视角：略倾斜俯视，比正对球心更接近真实地球产品 ==========
       camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(104.0, 28.0, 1.8e7),
+        destination: Cesium.Cartesian3.fromDegrees(105.0, 20.0, 1.2e7),
         orientation: {
-          heading: 0,
-          pitch: Cesium.Math.toRadians(-90),
+          heading: Cesium.Math.toRadians(15),
+          pitch: Cesium.Math.toRadians(-55),
           roll: 0,
         },
       });
+
+      // requestRenderMode 下日照仍需偶尔刷新（太阳位置变化）
+      setInterval(function () {
+        if (globe.enableLighting) scene.requestRender();
+      }, 60000);
 
       globe.tileLoadProgressEvent.addEventListener(function (queued) {
         if (queued === 0) hideLoading();
