@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#02060d" />
+  <title>map.cq.je</title>
+  <!-- CesiumJS CDN -->
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
+  <style>
+    :root {
+      --bg: #02060d;
+      --text: #202124;
+      --muted: #5f6368;
+      --border: #dadce0;
+      --surface: #fff;
+      --surface-2: #f1f3f4;
+      --blue: #1a73e8;
+      --shadow: 0 1px 3px rgba(60, 64, 67, 0.28);
+      --radius: 4px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    /* 首屏背景，减少空白闪白 */
+    #cesiumContainer {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+    }
+
+    .cesium-viewer-animationContainer,
+    .cesium-viewer-timelineContainer,
+    .cesium-viewer-fullscreenContainer,
+    .cesium-viewer-vrContainer,
+    .cesium-viewer-toolbar {
+      display: none !important;
+    }
+
+    .cesium-credit-logoContainer,
+    .cesium-credit-textContainer {
+      opacity: 0.45;
+      transform: scale(0.75);
+      transform-origin: bottom left;
+    }
+
+    .ui {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .ui > * { pointer-events: auto; }
+
+    .brand {
+      position: absolute;
+      top: calc(10px + var(--safe-t));
+      left: calc(10px + var(--safe-l));
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.55);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .search-wrap {
+      position: absolute;
+      top: calc(10px + var(--safe-t));
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(400px, calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .search-box:focus-within { border-color: var(--blue); }
+
+    .search-box input {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 0 12px;
+      font: 400 14px/1.3 var(--font);
+      color: var(--text);
+    }
+
+    .search-box input::placeholder { color: #80868b; }
+
+    .search-box .btn-icon,
+    .search-box .btn-go {
+      flex-shrink: 0;
+      height: 100%;
+      border: 0;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      color: var(--muted);
+      font: 500 13px var(--font);
+    }
+
+    .search-box .btn-icon {
+      width: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-box .btn-icon:hover,
+    .search-box .btn-go:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .search-box .btn-go {
+      padding: 0 14px;
+      color: var(--blue);
+    }
+
+    .search-box .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+    .search-box svg { width: 18px; height: 18px; }
+
+    .search-results {
+      display: none;
+      margin-top: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      max-height: min(260px, 40vh);
+      overflow-y: auto;
+    }
+
+    .search-results.open { display: block; }
+
+    .search-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      border-bottom: 1px solid #eee;
+      background: transparent;
+      padding: 10px 12px;
+      font: 400 13px/1.35 var(--font);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .search-item:last-child { border-bottom: 0; }
+    .search-item:hover,
+    .search-item:focus { background: #f8f9fa; outline: 0; }
+    .search-item:disabled { color: var(--muted); cursor: default; }
+    .search-item small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toolbar {
+      position: absolute;
+      left: 50%;
+      bottom: calc(12px + var(--safe-b));
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      max-width: calc(100vw - 20px - var(--safe-l) - var(--safe-r));
+    }
+
+    .map-type,
+    .extra {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .map-type button,
+    .extra button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: 500 13px var(--font);
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .map-type button + button,
+    .extra button + button {
+      border-left: 1px solid var(--border);
+    }
+
+    .map-type button:hover,
+    .extra button:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .map-type button.active,
+    .extra button.active {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .coord-toast {
+      position: absolute;
+      left: 50%;
+      bottom: calc(56px + var(--safe-b));
+      transform: translateX(-50%);
+      max-width: min(90vw, 340px);
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      font: 400 13px/1.4 var(--font);
+      color: var(--text);
+      text-align: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s;
+      z-index: 5;
+    }
+
+    .coord-toast.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .coord-toast strong {
+      font-weight: 600;
+      color: var(--blue);
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: var(--bg);
+      color: #fff;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .loading.hide {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loading strong {
+      font-weight: 500;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .loading-bar {
+      width: 72px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.15);
+      overflow: hidden;
+    }
+
+    .loading-bar::after {
+      content: "";
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: var(--blue);
+      animation: slide 0.9s linear infinite;
+    }
+
+    .loading p {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    @keyframes slide {
+      from { transform: translateX(-120%); }
+      to { transform: translateX(300%); }
+    }
+
+    @media (max-width: 640px) {
+      .brand { display: none; }
+      .search-wrap {
+        width: calc(100vw - 20px - var(--safe-l) - var(--safe-r));
+      }
+      .map-type button,
+      .extra button {
+        padding: 8px 11px;
+        font-size: 12px;
+      }
+      .coord-toast { bottom: calc(52px + var(--safe-b)); }
+    }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div class="loading" id="loading">
+    <strong>map.cq.je</strong>
+    <div class="loading-bar"></div>
+    <p>加载中…</p>
+  </div>
+
+  <div class="ui">
+    <div class="brand">map.cq.je</div>
+
+    <div class="search-wrap">
+      <form class="search-box" id="searchForm" autocomplete="off">
+        <input id="searchInput" type="search" placeholder="搜索地点" enterkeyhint="search" aria-label="搜索地点" />
+        <button type="button" class="btn-icon" id="locateBtn" title="定位" aria-label="定位当前位置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+            <circle cx="12" cy="12" r="8" />
+          </svg>
+        </button>
+        <button type="submit" class="btn-go">搜索</button>
+      </form>
+      <div class="search-results" id="searchResults" role="listbox"></div>
+    </div>
+
+    <div class="toolbar">
+      <nav class="map-type" aria-label="地图类型">
+        <button type="button" class="active" data-layer="satellite">卫星</button>
+        <button type="button" data-layer="streets">街道</button>
+        <button type="button" data-layer="hybrid">混合</button>
+      </nav>
+      <nav class="extra" aria-label="地形">
+        <button type="button" id="terrainBtn" aria-pressed="false">地形</button>
+      </nav>
+    </div>
+
+    <div class="coord-toast" id="coordToast" role="status"></div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // ========== 配置 ==========
+      // Esri World Imagery API Key（部署前替换）
+      const ESRI_API_KEY = "YOUR_ESRI_API_KEY";
+
+      // 可选：开启「地形」需要有效 Cesium Ion Token
+      // https://ion.cesium.com/
+      const CESIUM_ION_TOKEN = "YOUR_CESIUM_ION_TOKEN";
+      if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN") {
+        Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      }
+
+      const isMobile =
+        /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ||
+        Math.min(window.innerWidth, window.innerHeight) < 600;
+
+      const loadingEl = document.getElementById("loading");
+      const coordToast = document.getElementById("coordToast");
+      let toastTimer = null;
+      let loadingHidden = false;
+
+      function showToast(html, ms) {
+        coordToast.innerHTML = html;
+        coordToast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          coordToast.classList.remove("show");
+        }, ms || 4000);
+      }
+
+      function hideLoading() {
+        if (loadingHidden) return;
+        loadingHidden = true;
+        loadingEl.classList.add("hide");
+      }
+
+      // ========== 性能：限制并发瓦片请求（移动端更严） ==========
+      Cesium.RequestScheduler.maximumRequestsPerServer = isMobile ? 4 : 6;
+      Cesium.RequestScheduler.throttleRequests = true;
+
+      // ========== 影像（UrlTemplate，兼容 Cesium 1.124） ==========
+      function esriTile(servicePath) {
+        var hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
+        if (hasKey) {
+          return (
+            "https://ibasemaps-api.arcgis.com/arcgis/rest/services/" +
+            servicePath +
+            "/MapServer/tile/{z}/{y}/{x}?token=" +
+            encodeURIComponent(ESRI_API_KEY)
+          );
+        }
+        return (
+          "https://services.arcgisonline.com/ArcGIS/rest/services/" +
+          servicePath +
+          "/MapServer/tile/{z}/{y}/{x}"
+        );
+      }
+
+      function makeSatellite() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: esriTile("World_Imagery"),
+          credit: "© Esri",
+          // 移动端限制最大级别，减少超清瓦片压力
+          maximumLevel: isMobile ? 17 : 19,
+        });
+      }
+
+      function makeStreets() {
+        // OSM 栅格街道（也可换成其它 OpenFreeMap/OSM 兼容 XYZ）
+        return new Cesium.UrlTemplateImageryProvider({
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          credit: "© OpenStreetMap",
+          maximumLevel: isMobile ? 17 : 19,
+        });
+      }
+
+      // 混合图注记（路网/地名）
+      function makeLabels() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: esriTile("Reference/World_Boundaries_and_Places"),
+          credit: "© Esri",
+          maximumLevel: isMobile ? 16 : 18,
+        });
+      }
+
+      // ========== Viewer：默认卫星，快速出球 ==========
+      var viewer;
+      try {
+        viewer = new Cesium.Viewer("cesiumContainer", {
+          animation: false,
+          timeline: false,
+          baseLayerPicker: false,
+          geocoder: false,
+          homeButton: false,
+          sceneModePicker: false,
+          navigationHelpButton: false,
+          fullscreenButton: false,
+          vrButton: false,
+          infoBox: false,
+          selectionIndicator: false,
+          baseLayer: new Cesium.ImageryLayer(makeSatellite()),
+          // 默认关闭地形，按需开启
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+          requestRenderMode: true,
+          maximumRenderTimeChange: Infinity,
+          targetFrameRate: isMobile ? 30 : 60,
+          msaaSamples: isMobile ? 1 : 4,
+          contextOptions: {
+            webgl: {
+              alpha: false,
+              antialias: !isMobile,
+              powerPreference: "high-performance",
+            },
+          },
+        });
+      } catch (err) {
+        loadingEl.querySelector("p").textContent = "WebGL 不可用，请换现代浏览器。";
+        console.error(err);
+        return;
+      }
+
+      var scene = viewer.scene;
+      var globe = scene.globe;
+      var camera = viewer.camera;
+
+      // ========== 地球性能 / 画质 ==========
+      // SSE 略收紧，卫星更清晰（移动端仍放宽以保流畅）
+      globe.maximumScreenSpaceError = isMobile ? 3 : 1.5;
+      globe.tileCacheSize = isMobile ? 80 : 120;
+      globe.preloadWhenHidden = false;
+      globe.preloadSiblings = true;
+
+      // —— 真实感：大气散射 + 始终看清影像 ——
+      // 说明：开启 globe.enableLighting 会把一半地球压成夜侧（无城市灯时很假），
+      // 地图场景更适合「全昼影像 + 真实大气边缘」，贴近谷歌地球常用观感。
+      scene.sun.show = true; // 参与大气散射计算
+      scene.moon.show = false;
+      scene.skyAtmosphere.show = true;
+      globe.showGroundAtmosphere = true;
+      globe.enableLighting = false;
+      scene.fog.enabled = true;
+      scene.fog.density = 0.00015;
+      scene.fog.minimumBrightness = 0.05;
+      scene.shadowMap.enabled = false;
+      if (typeof scene.highDynamicRange !== "undefined") {
+        scene.highDynamicRange = !isMobile;
+      }
+      // 大气边缘略加强（属性因版本可能不同，做存在性判断）
+      var atm = scene.skyAtmosphere;
+      if (atm) {
+        if ("hueShift" in atm) atm.hueShift = 0.0;
+        if ("saturationShift" in atm) atm.saturationShift = 0.08;
+        if ("brightnessShift" in atm) atm.brightnessShift = 0.08;
+        if ("atmosphereLightIntensity" in atm) atm.atmosphereLightIntensity = 20.0;
+      }
+      if ("atmosphereLightIntensity" in globe) {
+        globe.atmosphereLightIntensity = 10.0;
+      }
+
+      // 未加载瓦片时用接近真实洋面的深蓝，减少灰块感
+      scene.backgroundColor = Cesium.Color.fromCssColorString("#02060d");
+      globe.baseColor = Cesium.Color.fromCssColorString("#0b1d33");
+
+      // 卫星层轻微调色，更接近肉眼卫星观感
+      var satelliteImagery = viewer.imageryLayers.get(0);
+      satelliteImagery.brightness = 1.06;
+      satelliteImagery.contrast = 1.1;
+      satelliteImagery.saturation = 1.08;
+      satelliteImagery.gamma = 0.95;
+
+      // 手势：旋转 / 缩放 / 倾斜
+      var controller = scene.screenSpaceCameraController;
+      controller.inertiaSpin = 0.8;
+      controller.inertiaTranslate = 0.8;
+      controller.inertiaZoom = 0.7;
+      controller.minimumZoomDistance = 200;
+      controller.maximumZoomDistance = 4e7;
+      controller.enableTilt = true;
+      controller.enableLook = true;
+      controller.zoomEventTypes = [
+        Cesium.CameraEventType.WHEEL,
+        Cesium.CameraEventType.PINCH,
+      ];
+      controller.tiltEventTypes = [
+        Cesium.CameraEventType.RIGHT_DRAG,
+        Cesium.CameraEventType.PINCH,
+        {
+          eventType: Cesium.CameraEventType.LEFT_DRAG,
+          modifier: Cesium.KeyboardEventModifier.CTRL,
+        },
+      ];
+
+      // ========== 图层：卫星 / 街道 / 混合 ==========
+      var satelliteLayer = satelliteImagery;
+      var streetsLayer = null;
+      var labelsLayer = null;
+      var roadsLayer = null;
+      var activeKey = "satellite";
+
+      function hideAll() {
+        satelliteLayer.show = false;
+        if (streetsLayer) streetsLayer.show = false;
+        if (labelsLayer) labelsLayer.show = false;
+        if (roadsLayer) roadsLayer.show = false;
+      }
+
+      function switchLayer(key) {
+        if (key === activeKey) return;
+        hideAll();
+
+        if (key === "satellite") {
+          satelliteLayer.show = true;
+        } else if (key === "streets") {
+          if (!streetsLayer) {
+            streetsLayer = viewer.imageryLayers.addImageryProvider(makeStreets());
+          }
+          streetsLayer.show = true;
+        } else if (key === "hybrid") {
+          // 混合 = 卫星 + 路网 + 地名（更接近谷歌地球混合）
+          satelliteLayer.show = true;
+          if (!roadsLayer) {
+            roadsLayer = viewer.imageryLayers.addImageryProvider(
+              new Cesium.UrlTemplateImageryProvider({
+                url: esriTile("Reference/World_Transportation"),
+                credit: "© Esri",
+                maximumLevel: isMobile ? 15 : 17,
+              })
+            );
+          }
+          if (!labelsLayer) {
+            labelsLayer = viewer.imageryLayers.addImageryProvider(makeLabels());
+          }
+          roadsLayer.show = true;
+          labelsLayer.show = true;
+        }
+
+        activeKey = key;
+        document.querySelectorAll("[data-layer]").forEach(function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-layer") === key);
+        });
+        scene.requestRender();
+      }
+
+      document.querySelectorAll("[data-layer]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          switchLayer(btn.getAttribute("data-layer"));
+        });
+      });
+
+      // ========== 按需地形 ==========
+      var terrainOn = false;
+      var terrainBtn = document.getElementById("terrainBtn");
+      terrainBtn.addEventListener("click", function () {
+        var hasIon =
+          CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN";
+        if (!terrainOn && !hasIon) {
+          showToast("请先配置有效的 Cesium Ion Token");
+          return;
+        }
+        terrainOn = !terrainOn;
+        terrainBtn.classList.toggle("active", terrainOn);
+        terrainBtn.setAttribute("aria-pressed", String(terrainOn));
+
+        if (terrainOn) {
+          Cesium.createWorldTerrainAsync({
+            requestVertexNormals: false,
+            requestWaterMask: false,
+          })
+            .then(function (provider) {
+              viewer.terrainProvider = provider;
+              scene.requestRender();
+            })
+            .catch(function () {
+              terrainOn = false;
+              terrainBtn.classList.remove("active");
+              terrainBtn.setAttribute("aria-pressed", "false");
+              showToast("地形加载失败");
+            });
+        } else {
+          viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          scene.requestRender();
+        }
+      });
+
+      // ========== 初始视角：相机在东亚上空正对地心，地球居中 ==========
+      camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(104.0, 28.0, 2.0e7),
+        orientation: {
+          heading: 0,
+          pitch: -Cesium.Math.PI_OVER_TWO,
+          roll: 0,
+        },
+      });
+
+      globe.tileLoadProgressEvent.addEventListener(function (queued) {
+        if (queued === 0) hideLoading();
+      });
+      setTimeout(hideLoading, 2500);
+      scene.postRender.addEventListener(function onFirst() {
+        hideLoading();
+        scene.postRender.removeEventListener(onFirst);
+      });
+
+      // ========== 点击坐标 ==========
+      var handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+      var pickEntity = null;
+
+      function setMarker(lon, lat, label) {
+        if (pickEntity) viewer.entities.remove(pickEntity);
+        pickEntity = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          point: {
+            pixelSize: 9,
+            color: Cesium.Color.fromCssColorString("#ea4335"),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          label: label
+            ? {
+                text: label,
+                font: "13px " + getComputedStyle(document.body).fontFamily,
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromCssColorString("#202124"),
+                outlineWidth: 3,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -12),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              }
+            : undefined,
+        });
+        scene.requestRender();
+      }
+
+      handler.setInputAction(function (click) {
+        var cartesian = camera.pickEllipsoid(click.position, globe.ellipsoid);
+        if (!cartesian) return;
+        var carto = Cesium.Cartographic.fromCartesian(cartesian);
+        var lon = Cesium.Math.toDegrees(carto.longitude);
+        var lat = Cesium.Math.toDegrees(carto.latitude);
+        setMarker(lon, lat);
+        showToast(
+          "<strong>坐标</strong><br/>" + lon.toFixed(6) + ", " + lat.toFixed(6)
+        );
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+      // ========== Nominatim 搜索 ==========
+      var searchForm = document.getElementById("searchForm");
+      var searchInput = document.getElementById("searchInput");
+      var searchResults = document.getElementById("searchResults");
+      var searchAbort = null;
+      var debounceTimer = null;
+
+      function closeResults() {
+        searchResults.classList.remove("open");
+        searchResults.innerHTML = "";
+      }
+
+      function flyTo(lon, lat, label) {
+        var short = label ? String(label).split(",")[0] : "";
+        camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 8000),
+          orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+          },
+          duration: 1.4,
+          complete: function () {
+            scene.requestRender();
+          },
+        });
+        setMarker(lon, lat, short);
+        if (short) showToast("<strong>" + short + "</strong>");
+      }
+
+      function renderResults(items) {
+        searchResults.innerHTML = "";
+        if (!items.length) {
+          searchResults.innerHTML =
+            '<button type="button" class="search-item" disabled>无结果</button>';
+          searchResults.classList.add("open");
+          return;
+        }
+        items.forEach(function (item) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "search-item";
+          btn.setAttribute("role", "option");
+          var name = item.display_name.split(",")[0];
+          btn.innerHTML = name + "<small>" + item.display_name + "</small>";
+          btn.addEventListener("click", function () {
+            flyTo(parseFloat(item.lon), parseFloat(item.lat), item.display_name);
+            closeResults();
+            searchInput.blur();
+          });
+          searchResults.appendChild(btn);
+        });
+        searchResults.classList.add("open");
+      }
+
+      function doSearch(q) {
+        if (!q || q.trim().length < 2) {
+          closeResults();
+          return;
+        }
+        if (searchAbort) searchAbort.abort();
+        searchAbort = new AbortController();
+        fetch(
+          "https://nominatim.openstreetmap.org/search?format=json&limit=6&q=" +
+            encodeURIComponent(q.trim()),
+          {
+            signal: searchAbort.signal,
+            headers: { Accept: "application/json" },
+          }
+        )
+          .then(function (res) {
+            if (!res.ok) throw new Error("search failed");
+            return res.json();
+          })
+          .then(renderResults)
+          .catch(function (e) {
+            if (e.name !== "AbortError") showToast("搜索失败，请稍后重试");
+          });
+      }
+
+      searchForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        doSearch(searchInput.value);
+      });
+
+      searchInput.addEventListener("input", function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          doSearch(searchInput.value);
+        }, 380);
+      });
+
+      document.addEventListener("click", function (e) {
+        if (!e.target.closest(".search-wrap")) closeResults();
+      });
+
+      // ========== 定位 ==========
+      var locateBtn = document.getElementById("locateBtn");
+      locateBtn.addEventListener("click", function () {
+        if (!navigator.geolocation) {
+          showToast("浏览器不支持定位");
+          return;
+        }
+        locateBtn.disabled = true;
+        showToast("正在定位…", 8000);
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            locateBtn.disabled = false;
+            flyTo(pos.coords.longitude, pos.coords.latitude, "我的位置");
+          },
+          function () {
+            locateBtn.disabled = false;
+            showToast("定位失败，请检查权限");
+          },
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+        );
+      });
+
+      window.addEventListener("resize", function () {
+        scene.requestRender();
+      });
+
+      ["pointerdown", "wheel", "touchstart"].forEach(function (evt) {
+        scene.canvas.addEventListener(
+          evt,
+          function () {
+            scene.requestRender();
+          },
+          { passive: true }
+        );
+      });
+
+      window.__mapApp = {
+        viewer: viewer,
+        switchLayer: switchLayer,
+        flyTo: flyTo,
+        showToast: showToast,
+      };
+    })();
+  </script>
+</body>
+</html>
