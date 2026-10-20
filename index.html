@@ -4,33 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1a2330" />
-  <title>map.cq.je — 3D 地球地图</title>
+  <title>map.cq.je</title>
   <link rel="preconnect" href="https://cesium.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- CesiumJS CDN -->
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
   <style>
     :root {
-      /* 浅色测绘工具条：避开深色玻璃拟态 / 青绿光晕那套 AI 默认审美 */
-      --bg-void: #1a2330;
-      --ink: #16181d;
-      --ink-soft: #5c6370;
-      --paper: #f4f5f7;
-      --paper-solid: #ffffff;
-      --line: rgba(22, 24, 29, 0.12);
-      --accent: #c23b22;
-      --accent-ink: #ffffff;
-      --radius: 8px;
-      --lift: 0 1px 2px rgba(16, 20, 28, 0.08), 0 8px 24px rgba(16, 20, 28, 0.12);
-      --font-display: "Bricolage Grotesque", sans-serif;
-      --font-body: "Public Sans", sans-serif;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-      --safe-left: env(safe-area-inset-left, 0px);
-      --safe-right: env(safe-area-inset-right, 0px);
+      --bg: #1a2330;
+      --text: #202124;
+      --muted: #5f6368;
+      --border: #dadce0;
+      --surface: #fff;
+      --surface-2: #f1f3f4;
+      --blue: #1a73e8;
+      --blue-hover: #1765cc;
+      --shadow: 0 1px 3px rgba(60, 64, 67, 0.28);
+      --radius: 4px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,21 +34,18 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: var(--font-body);
-      color: var(--ink);
-      background: var(--bg-void);
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
 
-    /* 容器背景：首屏出球前避免大面积空白 */
+    /* 首屏背景，避免空白闪白 */
     #cesiumContainer {
       position: absolute;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      background:
-        linear-gradient(165deg, #243044 0%, #1a2330 42%, #121820 100%);
+      background: var(--bg);
     }
 
     .cesium-viewer-animationContainer,
@@ -67,261 +59,214 @@
     .cesium-credit-logoContainer,
     .cesium-credit-textContainer {
       opacity: 0.45;
-      transform: scale(0.78);
+      transform: scale(0.75);
       transform-origin: bottom left;
     }
 
     .ui {
       position: absolute;
       inset: 0;
-      pointer-events: none;
       z-index: 10;
+      pointer-events: none;
     }
 
     .ui > * { pointer-events: auto; }
 
-    /* 品牌：左上角水印，不挤占搜索行 */
     .brand {
       position: absolute;
-      top: calc(16px + var(--safe-top));
-      left: calc(18px + var(--safe-left));
-      z-index: 2;
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-      letter-spacing: -0.045em;
-      line-height: 1;
-      color: #fff;
-      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.5);
-      white-space: nowrap;
+      top: calc(10px + var(--safe-t));
+      left: calc(10px + var(--safe-l));
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 0.01em;
       user-select: none;
-      animation: rise 0.4s ease both;
+      pointer-events: none;
     }
 
-    .brand span { color: var(--accent); }
-
-    /* 搜索：顶部居中一条，定位嵌进同一控件 */
+    /* 顶部搜索：白底、轻阴影、小圆角 */
     .search-wrap {
       position: absolute;
-      top: calc(14px + var(--safe-top));
+      top: calc(10px + var(--safe-t));
       left: 50%;
       transform: translateX(-50%);
-      width: min(420px, calc(100vw - 36px - var(--safe-left) - var(--safe-right)));
-      z-index: 3;
-      animation: searchIn 0.45s ease both;
+      width: min(400px, calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
     }
 
     .search-box {
       display: flex;
-      align-items: stretch;
-      height: 46px;
-      background: var(--paper-solid);
-      border: 1px solid var(--line);
+      align-items: center;
+      height: 40px;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--lift);
-      overflow: hidden;
+      box-shadow: var(--shadow);
     }
 
     .search-box:focus-within {
-      border-color: rgba(194, 59, 34, 0.5);
+      border-color: var(--blue);
     }
 
     .search-box input {
       flex: 1;
       min-width: 0;
-      border: none;
-      outline: none;
+      height: 100%;
+      border: 0;
+      outline: 0;
       background: transparent;
-      color: var(--ink);
-      font: 500 0.95rem/1.3 var(--font-body);
-      padding: 0 14px;
+      padding: 0 12px;
+      font: 400 14px/1.3 var(--font);
+      color: var(--text);
     }
 
-    .search-box input::placeholder { color: var(--ink-soft); }
+    .search-box input::placeholder { color: #80868b; }
 
-    .search-box .icon-btn {
-      width: 46px;
-      height: 46px;
-      border: none;
-      border-left: 1px solid var(--line);
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      color: var(--ink-soft);
+    .search-box .btn-icon,
+    .search-box .btn-go {
       flex-shrink: 0;
-    }
-
-    .search-box .icon-btn:hover {
-      background: var(--paper);
-      color: var(--ink);
-    }
-
-    .search-box .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .search-box .icon-btn svg { width: 18px; height: 18px; }
-
-    .search-box button[type="submit"] {
-      border: none;
-      background: var(--ink);
-      color: #fff;
-      padding: 0 16px;
-      font: 600 0.875rem var(--font-body);
+      height: 100%;
+      border: 0;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
       cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.15s;
+      color: var(--muted);
+      font: 500 13px var(--font);
     }
 
-    .search-box button[type="submit"]:hover { background: var(--accent); }
+    .search-box .btn-icon {
+      width: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-box .btn-icon:hover,
+    .search-box .btn-go:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .search-box .btn-go {
+      padding: 0 14px;
+      color: var(--blue);
+    }
+
+    .search-box .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+    .search-box svg { width: 18px; height: 18px; }
 
     .search-results {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      right: 0;
-      max-height: min(280px, 40vh);
-      overflow-y: auto;
-      background: var(--paper-solid);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--lift);
       display: none;
-      z-index: 20;
+      margin-top: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      max-height: min(260px, 40vh);
+      overflow-y: auto;
     }
 
     .search-results.open { display: block; }
 
     .search-item {
+      display: block;
       width: 100%;
       text-align: left;
-      padding: 11px 14px;
-      border: none;
+      border: 0;
+      border-bottom: 1px solid #eee;
       background: transparent;
-      color: var(--ink);
-      font: 500 0.9rem/1.35 var(--font-body);
+      padding: 10px 12px;
+      font: 400 13px/1.35 var(--font);
+      color: var(--text);
       cursor: pointer;
-      border-bottom: 1px solid var(--line);
     }
 
-    .search-item:last-child { border-bottom: none; }
+    .search-item:last-child { border-bottom: 0; }
     .search-item:hover,
-    .search-item:focus { background: #f0f1f4; outline: none; }
+    .search-item:focus { background: #f8f9fa; outline: 0; }
     .search-item small {
       display: block;
       margin-top: 2px;
-      color: var(--ink-soft);
-      font-size: 0.75rem;
-      font-weight: 400;
+      color: var(--muted);
+      font-size: 12px;
     }
 
-    /* 底栏：图层一组 + 效果一组，桌面不换行 */
-    .footer {
+    /* 底部：仅图层切换 */
+    .map-type {
       position: absolute;
       left: 50%;
-      bottom: calc(16px + var(--safe-bottom));
+      bottom: calc(12px + var(--safe-b));
       transform: translateX(-50%);
       display: flex;
-      align-items: center;
-      gap: 8px;
-      max-width: calc(100vw - 24px - var(--safe-left) - var(--safe-right));
-      z-index: 3;
-      animation: dockIn 0.45s 0.04s ease both;
-    }
-
-    .dock {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 3px;
-      background: var(--paper-solid);
-      border: 1px solid var(--line);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--lift);
-      flex-shrink: 0;
+      box-shadow: var(--shadow);
+      overflow: hidden;
     }
 
-    .seg,
-    .tog {
-      border: none;
+    .map-type button {
+      border: 0;
       background: transparent;
-      color: var(--ink-soft);
-      font: 600 0.82rem/1 var(--font-body);
-      padding: 9px 13px;
-      border-radius: 6px;
+      color: var(--muted);
+      font: 500 13px var(--font);
+      padding: 8px 14px;
       cursor: pointer;
-      transition: background 0.15s, color 0.15s;
       white-space: nowrap;
     }
 
-    .seg:hover,
-    .tog:hover { color: var(--ink); background: #eef0f3; }
+    .map-type button + button {
+      border-left: 1px solid var(--border);
+    }
 
-    .seg.active,
-    .tog.active {
-      background: var(--ink);
+    .map-type button:hover { background: var(--surface-2); color: var(--text); }
+
+    .map-type button.active {
+      background: var(--blue);
       color: #fff;
     }
 
     .coord-toast {
       position: absolute;
       left: 50%;
-      bottom: calc(68px + var(--safe-bottom));
-      transform: translateX(-50%) translateY(6px);
-      max-width: min(90vw, 360px);
-      padding: 9px 13px;
-      background: var(--paper-solid);
-      border: 1px solid var(--line);
+      bottom: calc(56px + var(--safe-b));
+      transform: translateX(-50%);
+      max-width: min(90vw, 340px);
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      box-shadow: var(--lift);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s, transform 0.2s;
-      font-size: 0.84rem;
-      line-height: 1.4;
+      box-shadow: var(--shadow);
+      font: 400 13px/1.4 var(--font);
+      color: var(--text);
       text-align: center;
-      color: var(--ink);
-      z-index: 4;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s;
+      z-index: 5;
     }
 
     .coord-toast.show {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
-      pointer-events: auto;
+      visibility: visible;
     }
 
     .coord-toast strong {
-      font-family: var(--font-display);
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    /* 操作提示：短暂出现后淡出，不与底栏抢位 */
-    .hint {
-      position: absolute;
-      left: 50%;
-      bottom: calc(68px + var(--safe-bottom));
-      transform: translateX(-50%);
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      color: rgba(255, 255, 255, 0.78);
-      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
-      white-space: nowrap;
-      pointer-events: none;
-      animation: hintFade 4.5s ease both;
-      z-index: 2;
+      font-weight: 600;
+      color: var(--blue);
     }
 
     .loading {
       position: absolute;
       inset: 0;
+      z-index: 30;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      background: linear-gradient(165deg, #243044 0%, #1a2330 42%, #121820 100%);
-      z-index: 30;
-      transition: opacity 0.4s ease, visibility 0.4s;
+      gap: 10px;
+      background: var(--bg);
       color: #fff;
+      transition: opacity 0.3s, visibility 0.3s;
     }
 
     .loading.hide {
@@ -330,116 +275,45 @@
       pointer-events: none;
     }
 
-    .loading-brand {
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: clamp(2rem, 6vw, 2.75rem);
-      letter-spacing: -0.045em;
+    .loading strong {
+      font-weight: 500;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.85);
     }
 
-    .loading-brand span { color: var(--accent); }
-
     .loading-bar {
-      width: 88px;
+      width: 72px;
       height: 2px;
-      background: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.15);
       overflow: hidden;
     }
 
     .loading-bar::after {
       content: "";
       display: block;
-      width: 36%;
+      width: 40%;
       height: 100%;
-      background: var(--accent);
-      animation: loadSlide 1s ease-in-out infinite;
+      background: var(--blue);
+      animation: slide 0.9s linear infinite;
     }
 
     .loading p {
-      font-size: 0.85rem;
-      color: rgba(255, 255, 255, 0.62);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.55);
     }
 
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
+    @keyframes slide {
+      from { transform: translateX(-120%); }
+      to { transform: translateX(300%); }
     }
 
-    @keyframes searchIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-
-    @keyframes dockIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-
-    @keyframes hintFade {
-      0%, 55% { opacity: 1; }
-      100% { opacity: 0; visibility: hidden; }
-    }
-
-    @keyframes loadSlide {
-      0% { transform: translateX(-120%); }
-      100% { transform: translateX(320%); }
-    }
-
-    /* 避开 Cesium 左下角版权 */
-    .cesium-viewer-bottom {
-      display: block !important;
-      bottom: 4px !important;
-      left: 4px !important;
-      max-width: 40vw;
-      pointer-events: none;
-    }
-
-    @media (max-width: 720px) {
-      .brand {
-        top: calc(12px + var(--safe-top));
-        left: calc(14px + var(--safe-left));
-        font-size: 1.2rem;
-      }
-
-      /* 手机：搜索下移，避开品牌；定位仍嵌在搜索条内 */
+    @media (max-width: 640px) {
+      .brand { display: none; }
       .search-wrap {
-        top: calc(48px + var(--safe-top));
-        width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+        width: calc(100vw - 20px - var(--safe-l) - var(--safe-r));
       }
-
-      .search-box { height: 44px; }
-      .search-box .icon-btn { width: 44px; height: 44px; }
-      .search-box button[type="submit"] { padding: 0 14px; }
-
-      .footer {
-        bottom: calc(12px + var(--safe-bottom));
-        gap: 6px;
-        width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
-        max-width: none;
-        justify-content: center;
-      }
-
-      .dock {
-        flex: 0 1 auto;
-        min-width: 0;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-      }
-
-      .dock::-webkit-scrollbar { display: none; }
-
-      .seg, .tog { padding: 8px 11px; font-size: 0.78rem; }
-
-      .coord-toast { bottom: calc(62px + var(--safe-bottom)); }
-      .hint { display: none; }
-    }
-
-    @media (min-width: 721px) {
-      /* 宽屏时品牌与居中搜索不重叠：给搜索留出左右安全区 */
-      .search-wrap {
-        width: min(400px, calc(100vw - 280px));
-      }
+      .map-type button { padding: 8px 12px; font-size: 12px; }
+      .coord-toast { bottom: calc(52px + var(--safe-b)); }
     }
   </style>
 </head>
@@ -447,71 +321,60 @@
   <div id="cesiumContainer"></div>
 
   <div class="loading" id="loading">
-    <div class="loading-brand">map<span>.</span>cq.je</div>
+    <strong>map.cq.je</strong>
     <div class="loading-bar"></div>
-    <p>正在加载地球…</p>
+    <p>加载中…</p>
   </div>
 
   <div class="ui">
-    <div class="brand" aria-label="map.cq.je">map<span>.</span>cq.je</div>
+    <div class="brand">map.cq.je</div>
 
     <div class="search-wrap">
       <form class="search-box" id="searchForm" autocomplete="off">
-        <input
-          id="searchInput"
-          type="search"
-          placeholder="搜索地点"
-          enterkeyhint="search"
-          aria-label="搜索地点"
-        />
-        <button type="button" class="icon-btn" id="locateBtn" title="定位当前位置" aria-label="定位当前位置">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
-            <circle cx="12" cy="12" r="8"/>
+        <input id="searchInput" type="search" placeholder="搜索地点" enterkeyhint="search" aria-label="搜索地点" />
+        <button type="button" class="btn-icon" id="locateBtn" title="定位" aria-label="定位当前位置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+            <circle cx="12" cy="12" r="8" />
           </svg>
         </button>
-        <button type="submit">搜索</button>
+        <button type="submit" class="btn-go">搜索</button>
       </form>
       <div class="search-results" id="searchResults" role="listbox"></div>
     </div>
 
-    <div class="footer">
-      <nav class="dock" aria-label="底图">
-        <button type="button" class="seg active" data-layer="satellite">卫星</button>
-        <button type="button" class="seg" data-layer="osm">街道</button>
-        <button type="button" class="seg" data-layer="topo">地形图</button>
-      </nav>
-      <nav class="dock" aria-label="效果">
-        <button type="button" class="tog" id="terrainBtn" aria-pressed="false">地形</button>
-        <button type="button" class="tog active" id="atmosBtn" aria-pressed="true">大气</button>
-      </nav>
-    </div>
+    <nav class="map-type" aria-label="地图类型">
+      <button type="button" class="active" data-layer="satellite">卫星</button>
+      <button type="button" data-layer="streets">街道</button>
+      <button type="button" data-layer="hybrid">混合</button>
+    </nav>
 
-    <div class="hint">拖拽旋转 · 滚轮缩放 · 右键倾斜</div>
     <div class="coord-toast" id="coordToast" role="status"></div>
   </div>
 
   <script>
-    (async function () {
+    (function () {
       "use strict";
 
       // ========== 配置 ==========
-      // Esri World Imagery API Key（部署前替换为真实 Key）
+      // Esri World Imagery API Key（部署前替换）
       const ESRI_API_KEY = "YOUR_ESRI_API_KEY";
 
-      // 可选：Cesium Ion Token（开启地形 WorldTerrain 时需要）
-      // 申请：https://ion.cesium.com/ — 未配置时不要写入占位符，避免 Ion 请求失败
+      // 可选：Cesium Ion Token（本页默认不用地形，可不填）
       const CESIUM_ION_TOKEN = "YOUR_CESIUM_ION_TOKEN";
       if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN") {
         Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
       }
 
-      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
-        || Math.min(window.innerWidth, window.innerHeight) < 600;
+      const isMobile =
+        /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ||
+        Math.min(window.innerWidth, window.innerHeight) < 600;
 
       const loadingEl = document.getElementById("loading");
       const coordToast = document.getElementById("coordToast");
       let toastTimer = null;
+      let loadingHidden = false;
 
       function showToast(html, ms) {
         coordToast.innerHTML = html;
@@ -519,55 +382,64 @@
         clearTimeout(toastTimer);
         toastTimer = setTimeout(function () {
           coordToast.classList.remove("show");
-        }, ms || 4500);
+        }, ms || 4000);
       }
 
-      let loadingHidden = false;
       function hideLoading() {
         if (loadingHidden) return;
         loadingHidden = true;
         loadingEl.classList.add("hide");
       }
 
-      // ========== 性能：全局请求调度（参照 Cesium Performance / MapLibre 并发控制） ==========
-      // 限制每服务器并发瓦片请求，避免移动端带宽打满导致卡顿
+      // ========== 性能：并发瓦片请求限制 ==========
       Cesium.RequestScheduler.maximumRequestsPerServer = isMobile ? 4 : 6;
       Cesium.RequestScheduler.throttleRequests = true;
 
-      // ========== 底图：用 UrlTemplate 直连瓦片（避免 ArcGis 同步构造在 Cesium 1.104+ 的 getDerivedResource 错误） ==========
-      function makeEsriImagery() {
+      // ========== 影像提供者（UrlTemplate，兼容 Cesium 1.124） ==========
+      function esriTileUrl(servicePath) {
         const hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
-        // Esri 公开 XYZ 瓦片；有 Key 时走 basemaps API
-        const base = hasKey
-          ? "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=" +
+        if (hasKey) {
+          return (
+            "https://ibasemaps-api.arcgis.com/arcgis/rest/services/" +
+            servicePath +
+            "/MapServer/tile/{z}/{y}/{x}?token=" +
             encodeURIComponent(ESRI_API_KEY)
-          : "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+          );
+        }
+        return (
+          "https://services.arcgisonline.com/ArcGIS/rest/services/" +
+          servicePath +
+          "/MapServer/tile/{z}/{y}/{x}"
+        );
+      }
+
+      function makeEsriImagery() {
         return new Cesium.UrlTemplateImageryProvider({
-          url: base,
-          credit: "© Esri World Imagery",
-          // 限制最大级别，避免无效超清请求
+          url: esriTileUrl("World_Imagery"),
+          credit: "© Esri",
           maximumLevel: isMobile ? 17 : 19,
         });
       }
 
-      function makeOsmImagery() {
+      function makeStreetsImagery() {
         return new Cesium.UrlTemplateImageryProvider({
           url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-          credit: "© OpenStreetMap contributors",
+          credit: "© OpenStreetMap",
           maximumLevel: 19,
         });
       }
 
-      function makeTopoImagery() {
+      // 混合图注记层（路网/地名叠在卫星上）
+      function makeHybridLabels() {
         return new Cesium.UrlTemplateImageryProvider({
-          url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-          credit: "© Esri World Topo Map",
+          url: esriTileUrl("Reference/World_Boundaries_and_Places"),
+          credit: "© Esri",
           maximumLevel: isMobile ? 16 : 18,
         });
       }
 
-      // ========== Viewer：精简默认控件，快速出球 ==========
-      let viewer;
+      // ========== Viewer ==========
+      var viewer;
       try {
         viewer = new Cesium.Viewer("cesiumContainer", {
           animation: false,
@@ -581,14 +453,11 @@
           vrButton: false,
           infoBox: false,
           selectionIndicator: false,
-          // 首屏直接挂卫星底图，减少空白等待
           baseLayer: new Cesium.ImageryLayer(makeEsriImagery()),
-          // 默认关闭地形：地形带宽大，按需开启（见地形按钮）
           terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-          // 请求渲染模式：静止时不重绘，省电省 GPU（交互时自动唤醒）
+          // 静止不重绘
           requestRenderMode: true,
           maximumRenderTimeChange: Infinity,
-          // 目标帧率；移动端略降有助于手势流畅
           targetFrameRate: isMobile ? 30 : 60,
           msaaSamples: isMobile ? 1 : 4,
           contextOptions: {
@@ -600,27 +469,25 @@
           },
         });
       } catch (err) {
-        loadingEl.querySelector("p").textContent =
-          "WebGL 初始化失败，请使用支持硬件加速的现代浏览器。";
+        loadingEl.querySelector("p").textContent = "WebGL 不可用，请换现代浏览器。";
         console.error(err);
         return;
       }
 
-      const scene = viewer.scene;
-      const globe = scene.globe;
-      const camera = viewer.camera;
+      var scene = viewer.scene;
+      var globe = scene.globe;
+      var camera = viewer.camera;
 
-      // ========== 地球与渲染性能参数 ==========
-      // maximumScreenSpaceError：越大瓦片越少、越糊，性能越好。官方默认约 2
+      // ========== 地球性能参数 ==========
+      // maximumScreenSpaceError：越大瓦片越少
       globe.maximumScreenSpaceError = isMobile ? 4 : 2;
-      // tileCacheSize：内存中缓存的瓦片数，过大占内存，过小反复请求
+      // tileCacheSize：瓦片缓存上限
       globe.tileCacheSize = isMobile ? 60 : 100;
-      // preloadWhenHidden：隐藏图层时不预加载，节省带宽（图层切换策略类似 MapLibre）
+      // preloadWhenHidden：隐藏层不预加载
       globe.preloadWhenHidden = false;
-      // 首屏优先显示低精度瓦片，尽快「出球」
       globe.preloadSiblings = false;
 
-      // 简化非必要效果（大气默认开一点氛围；光照/雾默认关）
+      // 轻量效果：保留大气，关掉光照/雾/日月
       scene.skyAtmosphere.show = true;
       scene.fog.enabled = false;
       globe.enableLighting = false;
@@ -629,18 +496,15 @@
       scene.sun.show = false;
       scene.shadowMap.enabled = false;
 
-      // 背景色与容器一致，避免 WebGL 清屏闪白
-      scene.backgroundColor = Cesium.Color.fromCssColorString("#0a1628");
-      globe.baseColor = Cesium.Color.fromCssColorString("#1a3a5c");
+      scene.backgroundColor = Cesium.Color.fromCssColorString("#1a2330");
+      globe.baseColor = Cesium.Color.fromCssColorString("#2a3a4c");
 
-      // 移动端手势：惯性与灵敏度微调，减少卡顿感
-      const controller = scene.screenSpaceCameraController;
+      var controller = scene.screenSpaceCameraController;
       controller.inertiaSpin = 0.8;
       controller.inertiaTranslate = 0.8;
       controller.inertiaZoom = 0.7;
       controller.minimumZoomDistance = 200;
       controller.maximumZoomDistance = 4e7;
-      // 启用倾斜（类似谷歌地球 / 苹果地图）
       controller.enableTilt = true;
       controller.enableLook = true;
       controller.zoomEventTypes = [
@@ -650,35 +514,47 @@
       controller.tiltEventTypes = [
         Cesium.CameraEventType.RIGHT_DRAG,
         Cesium.CameraEventType.PINCH,
-        { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL },
-        { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.SHIFT },
+        {
+          eventType: Cesium.CameraEventType.LEFT_DRAG,
+          modifier: Cesium.KeyboardEventModifier.CTRL,
+        },
       ];
 
-      // ========== 图层切换（卫星已作为 baseLayer；其它按需添加，MapLibre 式懒加载） ==========
-      const layers = {
-        satellite: viewer.imageryLayers.get(0),
-        osm: null,
-        topo: null,
-      };
-      let activeLayerKey = "satellite";
+      // ========== 图层：卫星 / 街道 / 混合 ==========
+      var satelliteLayer = viewer.imageryLayers.get(0);
+      var streetsLayer = null;
+      var hybridBaseLayer = null;
+      var hybridLabelsLayer = null;
+      var activeKey = "satellite";
 
-      const layerFactories = {
-        satellite: makeEsriImagery,
-        osm: makeOsmImagery,
-        topo: makeTopoImagery,
-      };
+      function hideAllLayers() {
+        satelliteLayer.show = false;
+        if (streetsLayer) streetsLayer.show = false;
+        if (hybridBaseLayer) hybridBaseLayer.show = false;
+        if (hybridLabelsLayer) hybridLabelsLayer.show = false;
+      }
 
       function switchLayer(key) {
-        if (key === activeLayerKey) return;
-        // 隐藏当前层（preloadWhenHidden=false，不会继续拉瓦片）
-        if (layers[activeLayerKey]) layers[activeLayerKey].show = false;
+        if (key === activeKey) return;
+        hideAllLayers();
 
-        if (!layers[key]) {
-          layers[key] = viewer.imageryLayers.addImageryProvider(layerFactories[key]());
+        if (key === "satellite") {
+          satelliteLayer.show = true;
+        } else if (key === "streets") {
+          if (!streetsLayer) {
+            streetsLayer = viewer.imageryLayers.addImageryProvider(makeStreetsImagery());
+          }
+          streetsLayer.show = true;
+        } else if (key === "hybrid") {
+          // 混合 = 卫星底图 + 注记（可复用默认卫星层，避免重复拉影像）
+          satelliteLayer.show = true;
+          if (!hybridLabelsLayer) {
+            hybridLabelsLayer = viewer.imageryLayers.addImageryProvider(makeHybridLabels());
+          }
+          hybridLabelsLayer.show = true;
         }
-        layers[key].show = true;
-        activeLayerKey = key;
 
+        activeKey = key;
         document.querySelectorAll("[data-layer]").forEach(function (btn) {
           btn.classList.toggle("active", btn.getAttribute("data-layer") === key);
         });
@@ -691,49 +567,7 @@
         });
       });
 
-      // ========== 按需效果：地形 / 大气 ==========
-      let terrainOn = false;
-      const terrainBtn = document.getElementById("terrainBtn");
-      terrainBtn.addEventListener("click", async function () {
-        const hasIon =
-          CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN";
-        if (!terrainOn && !hasIon) {
-          showToast("请先在代码中配置有效的 Cesium Ion Token 再开启地形");
-          return;
-        }
-        terrainOn = !terrainOn;
-        terrainBtn.classList.toggle("active", terrainOn);
-        terrainBtn.setAttribute("aria-pressed", String(terrainOn));
-        try {
-          if (terrainOn) {
-            viewer.terrainProvider = await Cesium.createWorldTerrainAsync({
-              requestVertexNormals: false,
-              requestWaterMask: false,
-            });
-          } else {
-            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-          }
-        } catch (e) {
-          terrainOn = false;
-          terrainBtn.classList.remove("active");
-          terrainBtn.setAttribute("aria-pressed", "false");
-          showToast("地形加载失败：请检查 Cesium Ion Token");
-        }
-        scene.requestRender();
-      });
-
-      let atmosOn = true;
-      const atmosBtn = document.getElementById("atmosBtn");
-      atmosBtn.addEventListener("click", function () {
-        atmosOn = !atmosOn;
-        atmosBtn.classList.toggle("active", atmosOn);
-        atmosBtn.setAttribute("aria-pressed", String(atmosOn));
-        scene.skyAtmosphere.show = atmosOn;
-        globe.showGroundAtmosphere = atmosOn;
-        scene.requestRender();
-      });
-
-      // ========== 初始视角：快速看到完整地球 ==========
+      // ========== 初始视角 ==========
       camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(104.0, 28.0, 1.8e7),
         orientation: {
@@ -743,8 +577,7 @@
         },
       });
 
-      // 首帧 / 瓦片就绪后隐藏 loading；兜底避免长时间遮罩
-      scene.globe.tileLoadProgressEvent.addEventListener(function (queued) {
+      globe.tileLoadProgressEvent.addEventListener(function (queued) {
         if (queued === 0) hideLoading();
       });
       setTimeout(hideLoading, 2500);
@@ -753,87 +586,97 @@
         scene.postRender.removeEventListener(onFirst);
       });
 
-      // ========== 点击显示坐标 ==========
-      const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
-      let pickEntity = null;
+      // ========== 点击坐标 ==========
+      var handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+      var pickEntity = null;
 
-      handler.setInputAction(function (click) {
-        const cartesian = camera.pickEllipsoid(click.position, globe.ellipsoid);
-        if (!cartesian) return;
-        const carto = Cesium.Cartographic.fromCartesian(cartesian);
-        const lon = Cesium.Math.toDegrees(carto.longitude);
-        const lat = Cesium.Math.toDegrees(carto.latitude);
-
+      function setMarker(lon, lat, label) {
         if (pickEntity) viewer.entities.remove(pickEntity);
         pickEntity = viewer.entities.add({
-          position: cartesian,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
           point: {
-            pixelSize: 10,
-            color: Cesium.Color.fromCssColorString("#c23b22"),
+            pixelSize: 9,
+            color: Cesium.Color.fromCssColorString("#ea4335"),
             outlineColor: Cesium.Color.WHITE,
             outlineWidth: 2,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
+          label: label
+            ? {
+                text: label,
+                font: "13px " + getComputedStyle(document.body).fontFamily,
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromCssColorString("#202124"),
+                outlineWidth: 3,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -12),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              }
+            : undefined,
         });
         scene.requestRender();
+      }
 
+      handler.setInputAction(function (click) {
+        var cartesian = camera.pickEllipsoid(click.position, globe.ellipsoid);
+        if (!cartesian) return;
+        var carto = Cesium.Cartographic.fromCartesian(cartesian);
+        var lon = Cesium.Math.toDegrees(carto.longitude);
+        var lat = Cesium.Math.toDegrees(carto.latitude);
+        setMarker(lon, lat);
         showToast(
-          "<strong>坐标</strong><br/>经度 " +
+          "<strong>坐标</strong><br/>" +
             lon.toFixed(6) +
-            "° · 纬度 " +
-            lat.toFixed(6) +
-            "°"
+            ", " +
+            lat.toFixed(6)
         );
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-      // ========== 地点搜索（Nominatim；生产可换自建/商业地理编码） ==========
-      const searchForm = document.getElementById("searchForm");
-      const searchInput = document.getElementById("searchInput");
-      const searchResults = document.getElementById("searchResults");
-      let searchAbort = null;
-      let debounceTimer = null;
+      // ========== Nominatim 搜索 ==========
+      var searchForm = document.getElementById("searchForm");
+      var searchInput = document.getElementById("searchInput");
+      var searchResults = document.getElementById("searchResults");
+      var searchAbort = null;
+      var debounceTimer = null;
 
       function closeResults() {
         searchResults.classList.remove("open");
         searchResults.innerHTML = "";
       }
 
-      async function doSearch(q) {
-        if (!q || q.trim().length < 2) {
-          closeResults();
-          return;
-        }
-        if (searchAbort) searchAbort.abort();
-        searchAbort = new AbortController();
-        try {
-          const url =
-            "https://nominatim.openstreetmap.org/search?format=json&limit=6&q=" +
-            encodeURIComponent(q.trim());
-          const res = await fetch(url, {
-            signal: searchAbort.signal,
-            headers: { Accept: "application/json" },
-          });
-          if (!res.ok) throw new Error("search failed");
-          renderResults(await res.json());
-        } catch (e) {
-          if (e.name !== "AbortError") showToast("搜索失败，请稍后重试");
-        }
+      function flyTo(lon, lat, label) {
+        var short = label ? String(label).split(",")[0] : "";
+        camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 8000),
+          orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+          },
+          duration: 1.4,
+          complete: function () {
+            scene.requestRender();
+          },
+        });
+        setMarker(lon, lat, short);
+        if (short) showToast("<strong>" + short + "</strong>");
       }
 
       function renderResults(items) {
         searchResults.innerHTML = "";
         if (!items.length) {
           searchResults.innerHTML =
-            '<button type="button" class="search-item" disabled>未找到结果</button>';
+            '<button type="button" class="search-item" disabled>无结果</button>';
           searchResults.classList.add("open");
           return;
         }
         items.forEach(function (item) {
-          const btn = document.createElement("button");
+          var btn = document.createElement("button");
           btn.type = "button";
           btn.className = "search-item";
           btn.setAttribute("role", "option");
-          const name = item.display_name.split(",")[0];
+          var name = item.display_name.split(",")[0];
           btn.innerHTML = name + "<small>" + item.display_name + "</small>";
           btn.addEventListener("click", function () {
             flyTo(parseFloat(item.lon), parseFloat(item.lat), item.display_name);
@@ -845,46 +688,29 @@
         searchResults.classList.add("open");
       }
 
-      function flyTo(lon, lat, label) {
-        camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 8000),
-          orientation: {
-            heading: 0,
-            pitch: Cesium.Math.toRadians(-45),
-            roll: 0,
-          },
-          duration: 1.6,
-          complete: function () {
-            scene.requestRender();
-          },
-        });
-        if (pickEntity) viewer.entities.remove(pickEntity);
-        pickEntity = viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(lon, lat),
-          point: {
-            pixelSize: 12,
-            color: Cesium.Color.fromCssColorString("#c23b22"),
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 2,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          },
-          label: label
-            ? {
-                text: label.split(",")[0],
-                font: "700 14px Bricolage Grotesque, sans-serif",
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.fromCssColorString("#16181d"),
-                outlineWidth: 3,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                pixelOffset: new Cesium.Cartesian2(0, -14),
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              }
-            : undefined,
-        });
-        showToast(
-          "<strong>" + (label ? label.split(",")[0] : "目标") + "</strong><br/>已飞往该位置"
-        );
+      function doSearch(q) {
+        if (!q || q.trim().length < 2) {
+          closeResults();
+          return;
+        }
+        if (searchAbort) searchAbort.abort();
+        searchAbort = new AbortController();
+        fetch(
+          "https://nominatim.openstreetmap.org/search?format=json&limit=6&q=" +
+            encodeURIComponent(q.trim()),
+          {
+            signal: searchAbort.signal,
+            headers: { Accept: "application/json" },
+          }
+        )
+          .then(function (res) {
+            if (!res.ok) throw new Error("search failed");
+            return res.json();
+          })
+          .then(renderResults)
+          .catch(function (e) {
+            if (e.name !== "AbortError") showToast("搜索失败，请稍后重试");
+          });
       }
 
       searchForm.addEventListener("submit", function (e) {
@@ -903,15 +729,15 @@
         if (!e.target.closest(".search-wrap")) closeResults();
       });
 
-      // ========== 定位当前位置 ==========
-      const locateBtn = document.getElementById("locateBtn");
+      // ========== 定位 ==========
+      var locateBtn = document.getElementById("locateBtn");
       locateBtn.addEventListener("click", function () {
         if (!navigator.geolocation) {
-          showToast("当前浏览器不支持定位");
+          showToast("浏览器不支持定位");
           return;
         }
         locateBtn.disabled = true;
-        showToast("正在获取位置…", 8000);
+        showToast("正在定位…", 8000);
         navigator.geolocation.getCurrentPosition(
           function (pos) {
             locateBtn.disabled = false;
@@ -919,7 +745,7 @@
           },
           function () {
             locateBtn.disabled = false;
-            showToast("定位失败：请检查浏览器定位权限");
+            showToast("定位失败，请检查权限");
           },
           { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
         );
@@ -929,7 +755,6 @@
         scene.requestRender();
       });
 
-      // 交互时确保渲染唤醒（requestRenderMode 下）
       ["pointerdown", "wheel", "touchstart"].forEach(function (evt) {
         scene.canvas.addEventListener(
           evt,
@@ -940,8 +765,7 @@
         );
       });
 
-      // 暴露给自动化测试（可选）
-      window.__mapApp = { viewer, switchLayer, flyTo, showToast };
+      window.__mapApp = { viewer: viewer, switchLayer: switchLayer, flyTo: flyTo, showToast: showToast };
     })();
   </script>
 </body>
