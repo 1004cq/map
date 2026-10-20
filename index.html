@@ -528,7 +528,7 @@
   </div>
 
   <script>
-    (function () {
+    (async function () {
       "use strict";
 
       // ========== 配置 ==========
@@ -536,48 +536,111 @@
       const ESRI_API_KEY = "YOUR_ESRI_API_KEY";
 
       // 可选：Cesium Ion Token（开启地形 WorldTerrain 时需要）
-      // 申请：https://ion.cesium.com/
-      Cesium.Ion.defaultAccessToken = "YOUR_CESIUM_ION_TOKEN";
+      // 申请：https://ion.cesium.com/ — 未配置时不要写入占位符，避免 Ion 请求失败
+      const CESIUM_ION_TOKEN = "YOUR_CESIUM_ION_TOKEN";
+      if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN") {
+        Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      }
 
       const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
         || Math.min(window.innerWidth, window.innerHeight) < 600;
+
+      const loadingEl = document.getElementById("loading");
+      const coordToast = document.getElementById("coordToast");
+      let toastTimer = null;
+
+      function showToast(html, ms) {
+        coordToast.innerHTML = html;
+        coordToast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          coordToast.classList.remove("show");
+        }, ms || 4500);
+      }
+
+      let loadingHidden = false;
+      function hideLoading() {
+        if (loadingHidden) return;
+        loadingHidden = true;
+        loadingEl.classList.add("hide");
+      }
 
       // ========== 性能：全局请求调度（参照 Cesium Performance / MapLibre 并发控制） ==========
       // 限制每服务器并发瓦片请求，避免移动端带宽打满导致卡顿
       Cesium.RequestScheduler.maximumRequestsPerServer = isMobile ? 4 : 6;
       Cesium.RequestScheduler.throttleRequests = true;
 
+      // ========== 底图：用 UrlTemplate 直连瓦片（避免 ArcGis 同步构造在 Cesium 1.104+ 的 getDerivedResource 错误） ==========
+      function makeEsriImagery() {
+        const hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
+        // Esri 公开 XYZ 瓦片；有 Key 时走 basemaps API
+        const base = hasKey
+          ? "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=" +
+            encodeURIComponent(ESRI_API_KEY)
+          : "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+        return new Cesium.UrlTemplateImageryProvider({
+          url: base,
+          credit: "© Esri World Imagery",
+          // 限制最大级别，避免无效超清请求
+          maximumLevel: isMobile ? 17 : 19,
+        });
+      }
+
+      function makeOsmImagery() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          credit: "© OpenStreetMap contributors",
+          maximumLevel: 19,
+        });
+      }
+
+      function makeTopoImagery() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+          credit: "© Esri World Topo Map",
+          maximumLevel: isMobile ? 16 : 18,
+        });
+      }
+
       // ========== Viewer：精简默认控件，快速出球 ==========
-      const viewer = new Cesium.Viewer("cesiumContainer", {
-        animation: false,
-        timeline: false,
-        baseLayerPicker: false,
-        geocoder: false,
-        homeButton: false,
-        sceneModePicker: false,
-        navigationHelpButton: false,
-        fullscreenButton: false,
-        vrButton: false,
-        infoBox: false,
-        selectionIndicator: false,
-        // 不用默认 Ion 影像，改用自管图层，加快首屏可控性
-        baseLayer: false,
-        // 默认关闭地形：地形带宽大，按需开启（见地形按钮）
-        terrain: undefined,
-        // 请求渲染模式：静止时不重绘，省电省 GPU（交互时自动唤醒）
-        requestRenderMode: true,
-        maximumRenderTimeChange: Infinity,
-        // 目标帧率；移动端略降有助于手势流畅
-        targetFrameRate: isMobile ? 30 : 60,
-        msaaSamples: isMobile ? 1 : 4,
-        contextOptions: {
-          webgl: {
-            alpha: false,
-            antialias: !isMobile,
-            powerPreference: "high-performance",
+      let viewer;
+      try {
+        viewer = new Cesium.Viewer("cesiumContainer", {
+          animation: false,
+          timeline: false,
+          baseLayerPicker: false,
+          geocoder: false,
+          homeButton: false,
+          sceneModePicker: false,
+          navigationHelpButton: false,
+          fullscreenButton: false,
+          vrButton: false,
+          infoBox: false,
+          selectionIndicator: false,
+          // 首屏直接挂卫星底图，减少空白等待
+          baseLayer: new Cesium.ImageryLayer(makeEsriImagery()),
+          // 默认关闭地形：地形带宽大，按需开启（见地形按钮）
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+          // 请求渲染模式：静止时不重绘，省电省 GPU（交互时自动唤醒）
+          requestRenderMode: true,
+          maximumRenderTimeChange: Infinity,
+          // 目标帧率；移动端略降有助于手势流畅
+          targetFrameRate: isMobile ? 30 : 60,
+          msaaSamples: isMobile ? 1 : 4,
+          contextOptions: {
+            webgl: {
+              alpha: false,
+              antialias: !isMobile,
+              powerPreference: "high-performance",
+            },
           },
-        },
-      });
+        });
+      } catch (err) {
+        loadingEl.querySelector("p").textContent =
+          "WebGL 初始化失败，请使用支持硬件加速的现代浏览器。";
+        console.error(err);
+        return;
+      }
 
       const scene = viewer.scene;
       const globe = scene.globe;
@@ -592,7 +655,6 @@
       globe.preloadWhenHidden = false;
       // 首屏优先显示低精度瓦片，尽快「出球」
       globe.preloadSiblings = false;
-      globe.tileLoadProgressEvent.addEventListener(function () {/* progress hook */});
 
       // 简化非必要效果（大气默认开一点氛围；光照/雾默认关）
       scene.skyAtmosphere.show = true;
@@ -601,7 +663,6 @@
       globe.showGroundAtmosphere = true;
       scene.moon.show = false;
       scene.sun.show = false;
-      // 阴影关闭
       scene.shadowMap.enabled = false;
 
       // 背景色与容器一致，避免 WebGL 清屏闪白
@@ -629,50 +690,19 @@
         { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.SHIFT },
       ];
 
-      // ========== 底图图层（卫星 / OSM / 地形图） ==========
-      function makeEsriImagery() {
-        // Esri World Imagery；有 Key 时走 API，否则回退公开 MapServer
-        const hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
-        const url = hasKey
-          ? "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer"
-          : "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
-
-        return new Cesium.ArcGisMapServerImageryProvider({
-          url: url,
-          token: hasKey ? ESRI_API_KEY : undefined,
-          enablePickFeatures: false,
-          // 限制最大级别，避免无效超清请求
-          maximumLevel: isMobile ? 17 : 19,
-        });
-      }
-
-      function makeOsmImagery() {
-        return new Cesium.UrlTemplateImageryProvider({
-          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-          credit: "© OpenStreetMap contributors",
-          maximumLevel: 19,
-        });
-      }
-
-      function makeTopoImagery() {
-        return new Cesium.ArcGisMapServerImageryProvider({
-          url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer",
-          enablePickFeatures: false,
-          maximumLevel: isMobile ? 16 : 18,
-        });
-      }
-
+      // ========== 图层切换（卫星已作为 baseLayer；其它按需添加，MapLibre 式懒加载） ==========
       const layers = {
-        satellite: null,
+        satellite: viewer.imageryLayers.get(0),
         osm: null,
         topo: null,
       };
-
-      // 只立即创建默认卫星图层，其它延迟创建（MapLibre 式按需加载）
-      layers.satellite = viewer.imageryLayers.addImageryProvider(makeEsriImagery());
-      layers.satellite.show = true;
-
       let activeLayerKey = "satellite";
+
+      const layerFactories = {
+        satellite: makeEsriImagery,
+        osm: makeOsmImagery,
+        topo: makeTopoImagery,
+      };
 
       function switchLayer(key) {
         if (key === activeLayerKey) return;
@@ -680,8 +710,7 @@
         if (layers[activeLayerKey]) layers[activeLayerKey].show = false;
 
         if (!layers[key]) {
-          const factory = { satellite: makeEsriImagery, osm: makeOsmImagery, topo: makeTopoImagery }[key];
-          layers[key] = viewer.imageryLayers.addImageryProvider(factory());
+          layers[key] = viewer.imageryLayers.addImageryProvider(layerFactories[key]());
         }
         layers[key].show = true;
         activeLayerKey = key;
@@ -702,12 +731,17 @@
       let terrainOn = false;
       const terrainBtn = document.getElementById("terrainBtn");
       terrainBtn.addEventListener("click", async function () {
+        const hasIon =
+          CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN";
+        if (!terrainOn && !hasIon) {
+          showToast("请先在代码中配置有效的 Cesium Ion Token 再开启地形");
+          return;
+        }
         terrainOn = !terrainOn;
         terrainBtn.classList.toggle("active", terrainOn);
         terrainBtn.setAttribute("aria-pressed", String(terrainOn));
         try {
           if (terrainOn) {
-            // 需要有效 Cesium Ion Token；失败则提示
             viewer.terrainProvider = await Cesium.createWorldTerrainAsync({
               requestVertexNormals: false,
               requestWaterMask: false,
@@ -719,7 +753,7 @@
           terrainOn = false;
           terrainBtn.classList.remove("active");
           terrainBtn.setAttribute("aria-pressed", "false");
-          showToast("地形加载失败：请配置有效的 Cesium Ion Token");
+          showToast("地形加载失败：请检查 Cesium Ion Token");
         }
         scene.requestRender();
       });
@@ -746,38 +780,19 @@
         },
       });
 
-      // 首帧渲染后隐藏 loading
-      const loadingEl = document.getElementById("loading");
-      let loadingHidden = false;
-      function hideLoading() {
-        if (loadingHidden) return;
-        loadingHidden = true;
-        loadingEl.classList.add("hide");
-      }
+      // 首帧 / 瓦片就绪后隐藏 loading；兜底避免长时间遮罩
       scene.globe.tileLoadProgressEvent.addEventListener(function (queued) {
         if (queued === 0) hideLoading();
       });
-      // 兜底：最多等 2.5s 强制出界面，避免空白过久
       setTimeout(hideLoading, 2500);
-      viewer.scene.postRender.addEventListener(function onFirst() {
+      scene.postRender.addEventListener(function onFirst() {
         hideLoading();
-        viewer.scene.postRender.removeEventListener(onFirst);
+        scene.postRender.removeEventListener(onFirst);
       });
 
       // ========== 点击显示坐标 ==========
       const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
-      const coordToast = document.getElementById("coordToast");
-      let toastTimer = null;
       let pickEntity = null;
-
-      function showToast(html, ms) {
-        coordToast.innerHTML = html;
-        coordToast.classList.add("show");
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(function () {
-          coordToast.classList.remove("show");
-        }, ms || 4500);
-      }
 
       handler.setInputAction(function (click) {
         const cartesian = camera.pickEllipsoid(click.position, globe.ellipsoid);
@@ -808,7 +823,7 @@
         );
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-      // ========== 地点搜索（Nominatim，免费；生产可换自建/商业地理编码） ==========
+      // ========== 地点搜索（Nominatim；生产可换自建/商业地理编码） ==========
       const searchForm = document.getElementById("searchForm");
       const searchInput = document.getElementById("searchInput");
       const searchResults = document.getElementById("searchResults");
@@ -836,12 +851,9 @@
             headers: { Accept: "application/json" },
           });
           if (!res.ok) throw new Error("search failed");
-          const data = await res.json();
-          renderResults(data);
+          renderResults(await res.json());
         } catch (e) {
-          if (e.name !== "AbortError") {
-            showToast("搜索失败，请稍后重试");
-          }
+          if (e.name !== "AbortError") showToast("搜索失败，请稍后重试");
         }
       }
 
@@ -859,11 +871,7 @@
           btn.className = "search-item";
           btn.setAttribute("role", "option");
           const name = item.display_name.split(",")[0];
-          btn.innerHTML =
-            name +
-            "<small>" +
-            item.display_name +
-            "</small>";
+          btn.innerHTML = name + "<small>" + item.display_name + "</small>";
           btn.addEventListener("click", function () {
             flyTo(parseFloat(item.lon), parseFloat(item.lat), item.display_name);
             closeResults();
@@ -875,9 +883,8 @@
       }
 
       function flyTo(lon, lat, label) {
-        const height = 8000;
         camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 8000),
           orientation: {
             heading: 0,
             pitch: Cesium.Math.toRadians(-45),
@@ -912,7 +919,9 @@
               }
             : undefined,
         });
-        showToast("<strong>" + (label ? label.split(",")[0] : "目标") + "</strong><br/>已飞往该位置");
+        showToast(
+          "<strong>" + (label ? label.split(",")[0] : "目标") + "</strong><br/>已飞往该位置"
+        );
       }
 
       searchForm.addEventListener("submit", function (e) {
@@ -953,17 +962,23 @@
         );
       });
 
-      // 窗口尺寸变化时请求重绘
       window.addEventListener("resize", function () {
         scene.requestRender();
       });
 
       // 交互时确保渲染唤醒（requestRenderMode 下）
       ["pointerdown", "wheel", "touchstart"].forEach(function (evt) {
-        scene.canvas.addEventListener(evt, function () {
-          scene.requestRender();
-        }, { passive: true });
+        scene.canvas.addEventListener(
+          evt,
+          function () {
+            scene.requestRender();
+          },
+          { passive: true }
+        );
       });
+
+      // 暴露给自动化测试（可选）
+      window.__mapApp = { viewer, switchLayer, flyTo, showToast };
     })();
   </script>
 </body>
