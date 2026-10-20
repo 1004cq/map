@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#e8eaed" />
+  <meta name="theme-color" content="#1a2330" />
   <title>map.cq.je</title>
-  <!-- MapLibre GL JS -->
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <!-- CesiumJS CDN -->
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
   <style>
     :root {
-      --bg: #e8eaed;
+      --bg: #1a2330;
       --text: #202124;
       --muted: #5f6368;
       --border: #dadce0;
@@ -39,26 +39,32 @@
       touch-action: manipulation;
     }
 
-    /* 容器背景：首屏减空白 */
-    #map {
+    /* 首屏背景，减少空白闪白 */
+    #cesiumContainer {
       position: absolute;
       inset: 0;
       background: var(--bg);
     }
 
-    .maplibregl-ctrl-attrib {
-      font-size: 10px !important;
-      background: rgba(255, 255, 255, 0.7) !important;
+    .cesium-viewer-animationContainer,
+    .cesium-viewer-timelineContainer,
+    .cesium-viewer-fullscreenContainer,
+    .cesium-viewer-vrContainer,
+    .cesium-viewer-toolbar {
+      display: none !important;
     }
 
-    .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
-      margin: 0 0 52px 8px;
+    .cesium-credit-logoContainer,
+    .cesium-credit-textContainer {
+      opacity: 0.45;
+      transform: scale(0.75);
+      transform-origin: bottom left;
     }
 
     .ui {
       position: absolute;
       inset: 0;
-      z-index: 2;
+      z-index: 10;
       pointer-events: none;
     }
 
@@ -70,7 +76,7 @@
       left: calc(10px + var(--safe-l));
       font-size: 11px;
       font-weight: 500;
-      color: var(--muted);
+      color: rgba(255, 255, 255, 0.55);
       user-select: none;
       pointer-events: none;
     }
@@ -179,20 +185,29 @@
       font-size: 12px;
     }
 
-    .map-type {
+    .toolbar {
       position: absolute;
       left: 50%;
       bottom: calc(12px + var(--safe-b));
       transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      max-width: calc(100vw - 20px - var(--safe-l) - var(--safe-r));
+    }
+
+    .map-type,
+    .extra {
       display: flex;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow: hidden;
+      flex-shrink: 0;
     }
 
-    .map-type button {
+    .map-type button,
+    .extra button {
       border: 0;
       background: transparent;
       color: var(--muted);
@@ -202,9 +217,19 @@
       white-space: nowrap;
     }
 
-    .map-type button + button { border-left: 1px solid var(--border); }
-    .map-type button:hover { background: var(--surface-2); color: var(--text); }
-    .map-type button.active {
+    .map-type button + button,
+    .extra button + button {
+      border-left: 1px solid var(--border);
+    }
+
+    .map-type button:hover,
+    .extra button:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .map-type button.active,
+    .extra button.active {
       background: var(--blue);
       color: #fff;
     }
@@ -242,14 +267,15 @@
     .loading {
       position: absolute;
       inset: 0;
-      z-index: 20;
+      z-index: 30;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 10px;
       background: var(--bg);
-      transition: opacity 0.25s, visibility 0.25s;
+      color: #fff;
+      transition: opacity 0.3s, visibility 0.3s;
     }
 
     .loading.hide {
@@ -261,13 +287,13 @@
     .loading strong {
       font-weight: 500;
       font-size: 14px;
-      color: var(--muted);
+      color: rgba(255, 255, 255, 0.85);
     }
 
     .loading-bar {
       width: 72px;
       height: 2px;
-      background: #dadce0;
+      background: rgba(255, 255, 255, 0.15);
       overflow: hidden;
     }
 
@@ -282,7 +308,7 @@
 
     .loading p {
       font-size: 12px;
-      color: var(--muted);
+      color: rgba(255, 255, 255, 0.55);
     }
 
     @keyframes slide {
@@ -295,15 +321,17 @@
       .search-wrap {
         width: calc(100vw - 20px - var(--safe-l) - var(--safe-r));
       }
-      .map-type button { padding: 8px 12px; font-size: 12px; }
-      .maplibregl-ctrl-bottom-left .maplibregl-ctrl {
-        margin-bottom: 48px;
+      .map-type button,
+      .extra button {
+        padding: 8px 11px;
+        font-size: 12px;
       }
+      .coord-toast { bottom: calc(52px + var(--safe-b)); }
     }
   </style>
 </head>
 <body>
-  <div id="map"></div>
+  <div id="cesiumContainer"></div>
 
   <div class="loading" id="loading">
     <strong>map.cq.je</strong>
@@ -329,11 +357,16 @@
       <div class="search-results" id="searchResults" role="listbox"></div>
     </div>
 
-    <nav class="map-type" aria-label="地图类型">
-      <button type="button" data-layer="streets" class="active">街道</button>
-      <button type="button" data-layer="satellite">卫星</button>
-      <button type="button" data-layer="hybrid">混合</button>
-    </nav>
+    <div class="toolbar">
+      <nav class="map-type" aria-label="地图类型">
+        <button type="button" class="active" data-layer="satellite">卫星</button>
+        <button type="button" data-layer="streets">街道</button>
+        <button type="button" data-layer="hybrid">混合</button>
+      </nav>
+      <nav class="extra" aria-label="地形">
+        <button type="button" id="terrainBtn" aria-pressed="false">地形</button>
+      </nav>
+    </div>
 
     <div class="coord-toast" id="coordToast" role="status"></div>
   </div>
@@ -343,18 +376,24 @@
       "use strict";
 
       // ========== 配置 ==========
+      // Esri World Imagery API Key（部署前替换）
       const ESRI_API_KEY = "YOUR_ESRI_API_KEY";
-      // OpenFreeMap 矢量街道（无需 Key）
-      const STREETS_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+
+      // 可选：开启「地形」需要有效 Cesium Ion Token
+      // https://ion.cesium.com/
+      const CESIUM_ION_TOKEN = "YOUR_CESIUM_ION_TOKEN";
+      if (CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN") {
+        Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      }
+
+      const isMobile =
+        /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ||
+        Math.min(window.innerWidth, window.innerHeight) < 600;
 
       const loadingEl = document.getElementById("loading");
       const coordToast = document.getElementById("coordToast");
       let toastTimer = null;
       let loadingHidden = false;
-      let marker = null;
-      let activeLayer = "streets";
-      let hybridStylePromise = null;
-      let libertyStyleCache = null;
 
       function showToast(html, ms) {
         coordToast.innerHTML = html;
@@ -371,209 +410,175 @@
         loadingEl.classList.add("hide");
       }
 
-      function esriImageryTiles() {
-        const hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
+      // ========== 性能：限制并发瓦片请求（移动端更严） ==========
+      Cesium.RequestScheduler.maximumRequestsPerServer = isMobile ? 4 : 6;
+      Cesium.RequestScheduler.throttleRequests = true;
+
+      // ========== 影像（UrlTemplate，兼容 Cesium 1.124） ==========
+      function esriTile(servicePath) {
+        var hasKey = ESRI_API_KEY && ESRI_API_KEY !== "YOUR_ESRI_API_KEY";
         if (hasKey) {
-          return [
-            "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=" +
-              encodeURIComponent(ESRI_API_KEY),
-          ];
-        }
-        return [
-          "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        ];
-      }
-
-      function satelliteStyle() {
-        return {
-          version: 8,
-          name: "esri-satellite",
-          sources: {
-            esri: {
-              type: "raster",
-              tiles: esriImageryTiles(),
-              tileSize: 256,
-              attribution: "© Esri",
-              maxzoom: 19,
-            },
-          },
-          layers: [
-            {
-              id: "esri-satellite",
-              type: "raster",
-              source: "esri",
-              minzoom: 0,
-              maxzoom: 22,
-            },
-          ],
-        };
-      }
-
-      function fetchLibertyStyle() {
-        if (libertyStyleCache) return Promise.resolve(libertyStyleCache);
-        return fetch(STREETS_STYLE)
-          .then(function (res) {
-            if (!res.ok) throw new Error("style fetch failed");
-            return res.json();
-          })
-          .then(function (json) {
-            libertyStyleCache = json;
-            return json;
-          });
-      }
-
-      // 混合：Esri 卫星 + OpenFreeMap 道路线/注记
-      function getHybridStyle() {
-        if (hybridStylePromise) return hybridStylePromise;
-        hybridStylePromise = fetchLibertyStyle().then(function (base) {
-          var layers = [
-            {
-              id: "esri-satellite",
-              type: "raster",
-              source: "esri",
-              minzoom: 0,
-              maxzoom: 22,
-            },
-          ];
-
-          base.layers.forEach(function (layer) {
-            var id = layer.id || "";
-            var keepSymbol = layer.type === "symbol";
-            var keepRoad =
-              layer.type === "line" &&
-              /transportation|highway|road|bridge|ferry/.test(id) &&
-              !/tunnel/.test(id);
-            if (!keepSymbol && !keepRoad) return;
-
-            var clone = JSON.parse(JSON.stringify(layer));
-            if (keepRoad && clone.paint) {
-              // 卫星上提高道路可读性
-              if (clone.paint["line-color"] !== undefined) {
-                clone.paint["line-color"] = "#ffffff";
-              }
-              clone.paint["line-opacity"] =
-                typeof clone.paint["line-opacity"] === "number"
-                  ? Math.max(clone.paint["line-opacity"], 0.55)
-                  : 0.65;
-            }
-            if (keepSymbol && clone.paint) {
-              if (clone.paint["text-halo-color"] === undefined) {
-                clone.paint["text-halo-color"] = "#000000";
-              }
-              if (clone.paint["text-halo-width"] === undefined) {
-                clone.paint["text-halo-width"] = 1.2;
-              }
-            }
-            layers.push(clone);
-          });
-
-          return {
-            version: 8,
-            name: "hybrid",
-            glyphs: base.glyphs,
-            sprite: base.sprite,
-            sources: {
-              esri: {
-                type: "raster",
-                tiles: esriImageryTiles(),
-                tileSize: 256,
-                attribution: "© Esri",
-                maxzoom: 19,
-              },
-              openmaptiles: base.sources.openmaptiles,
-            },
-            layers: layers,
-          };
-        });
-        return hybridStylePromise;
-      }
-
-      // ========== 地图：街道优先首屏 ==========
-      var map = new maplibregl.Map({
-        container: "map",
-        style: STREETS_STYLE,
-        center: [104.06, 30.67],
-        zoom: 3.2,
-        attributionControl: true,
-        // 移动端手势：默认捏合缩放、拖拽、旋转
-        dragRotate: true,
-        touchPitch: true,
-        pitchWithRotate: true,
-        fadeDuration: 0,
-        maxTileCacheSize: 80,
-      });
-
-      map.addControl(
-        new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }),
-        "bottom-right"
-      );
-      map.addControl(new maplibregl.ScaleControl({ maxWidth: 100 }), "bottom-left");
-
-      map.once("load", hideLoading);
-      // 兜底：避免长时间遮罩
-      setTimeout(hideLoading, 2500);
-
-      map.on("error", function (e) {
-        console.warn(e && e.error ? e.error : e);
-      });
-
-      function setMarker(lng, lat, label) {
-        if (marker) marker.remove();
-        var el = document.createElement("div");
-        el.style.cssText =
-          "width:12px;height:12px;border-radius:50%;background:#ea4335;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35);";
-        marker = new maplibregl.Marker({ element: el })
-          .setLngLat([lng, lat])
-          .addTo(map);
-        if (label) {
-          marker.setPopup(
-            new maplibregl.Popup({ offset: 12, closeButton: false }).setText(label)
+          return (
+            "https://ibasemaps-api.arcgis.com/arcgis/rest/services/" +
+            servicePath +
+            "/MapServer/tile/{z}/{y}/{x}?token=" +
+            encodeURIComponent(ESRI_API_KEY)
           );
         }
+        return (
+          "https://services.arcgisonline.com/ArcGIS/rest/services/" +
+          servicePath +
+          "/MapServer/tile/{z}/{y}/{x}"
+        );
       }
 
-      function flyTo(lng, lat, label) {
-        map.flyTo({
-          center: [lng, lat],
-          zoom: Math.max(map.getZoom(), 14),
-          essential: true,
-          duration: 1200,
+      function makeSatellite() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: esriTile("World_Imagery"),
+          credit: "© Esri",
+          // 移动端限制最大级别，减少超清瓦片压力
+          maximumLevel: isMobile ? 17 : 19,
         });
-        var short = label ? String(label).split(",")[0] : "";
-        setMarker(lng, lat, short);
-        if (short) showToast("<strong>" + short + "</strong>");
       }
 
-      function resolveStyle(key) {
-        if (key === "streets") return Promise.resolve(STREETS_STYLE);
-        if (key === "satellite") return Promise.resolve(satelliteStyle());
-        return getHybridStyle();
+      function makeStreets() {
+        // OSM 栅格街道（也可换成其它 OpenFreeMap/OSM 兼容 XYZ）
+        return new Cesium.UrlTemplateImageryProvider({
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          credit: "© OpenStreetMap",
+          maximumLevel: isMobile ? 17 : 19,
+        });
+      }
+
+      // 混合图注记（路网/地名）
+      function makeLabels() {
+        return new Cesium.UrlTemplateImageryProvider({
+          url: esriTile("Reference/World_Boundaries_and_Places"),
+          credit: "© Esri",
+          maximumLevel: isMobile ? 16 : 18,
+        });
+      }
+
+      // ========== Viewer：默认卫星，快速出球 ==========
+      var viewer;
+      try {
+        viewer = new Cesium.Viewer("cesiumContainer", {
+          animation: false,
+          timeline: false,
+          baseLayerPicker: false,
+          geocoder: false,
+          homeButton: false,
+          sceneModePicker: false,
+          navigationHelpButton: false,
+          fullscreenButton: false,
+          vrButton: false,
+          infoBox: false,
+          selectionIndicator: false,
+          baseLayer: new Cesium.ImageryLayer(makeSatellite()),
+          // 默认关闭地形，按需开启
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+          requestRenderMode: true,
+          maximumRenderTimeChange: Infinity,
+          targetFrameRate: isMobile ? 30 : 60,
+          msaaSamples: isMobile ? 1 : 4,
+          contextOptions: {
+            webgl: {
+              alpha: false,
+              antialias: !isMobile,
+              powerPreference: "high-performance",
+            },
+          },
+        });
+      } catch (err) {
+        loadingEl.querySelector("p").textContent = "WebGL 不可用，请换现代浏览器。";
+        console.error(err);
+        return;
+      }
+
+      var scene = viewer.scene;
+      var globe = scene.globe;
+      var camera = viewer.camera;
+
+      // ========== 地球性能参数 ==========
+      // maximumScreenSpaceError：越大瓦片越少、越糊
+      globe.maximumScreenSpaceError = isMobile ? 4 : 2;
+      // tileCacheSize：内存瓦片缓存上限
+      globe.tileCacheSize = isMobile ? 60 : 100;
+      // preloadWhenHidden：隐藏图层不预加载
+      globe.preloadWhenHidden = false;
+      globe.preloadSiblings = false;
+
+      // 轻量效果：大气开、光照/雾关
+      scene.skyAtmosphere.show = true;
+      scene.fog.enabled = false;
+      globe.enableLighting = false;
+      globe.showGroundAtmosphere = true;
+      scene.moon.show = false;
+      scene.sun.show = false;
+      scene.shadowMap.enabled = false;
+
+      scene.backgroundColor = Cesium.Color.fromCssColorString("#1a2330");
+      globe.baseColor = Cesium.Color.fromCssColorString("#2a3a4c");
+
+      // 手势：旋转 / 缩放 / 倾斜
+      var controller = scene.screenSpaceCameraController;
+      controller.inertiaSpin = 0.8;
+      controller.inertiaTranslate = 0.8;
+      controller.inertiaZoom = 0.7;
+      controller.minimumZoomDistance = 200;
+      controller.maximumZoomDistance = 4e7;
+      controller.enableTilt = true;
+      controller.enableLook = true;
+      controller.zoomEventTypes = [
+        Cesium.CameraEventType.WHEEL,
+        Cesium.CameraEventType.PINCH,
+      ];
+      controller.tiltEventTypes = [
+        Cesium.CameraEventType.RIGHT_DRAG,
+        Cesium.CameraEventType.PINCH,
+        {
+          eventType: Cesium.CameraEventType.LEFT_DRAG,
+          modifier: Cesium.KeyboardEventModifier.CTRL,
+        },
+      ];
+
+      // ========== 图层：卫星 / 街道 / 混合 ==========
+      var satelliteLayer = viewer.imageryLayers.get(0);
+      var streetsLayer = null;
+      var labelsLayer = null;
+      var activeKey = "satellite";
+
+      function hideAll() {
+        satelliteLayer.show = false;
+        if (streetsLayer) streetsLayer.show = false;
+        if (labelsLayer) labelsLayer.show = false;
       }
 
       function switchLayer(key) {
-        if (key === activeLayer) return;
-        var prev = activeLayer;
-        activeLayer = key;
+        if (key === activeKey) return;
+        hideAll();
+
+        if (key === "satellite") {
+          satelliteLayer.show = true;
+        } else if (key === "streets") {
+          if (!streetsLayer) {
+            streetsLayer = viewer.imageryLayers.addImageryProvider(makeStreets());
+          }
+          streetsLayer.show = true;
+        } else if (key === "hybrid") {
+          // 混合 = 卫星 + 注记（复用卫星层，避免重复拉影像）
+          satelliteLayer.show = true;
+          if (!labelsLayer) {
+            labelsLayer = viewer.imageryLayers.addImageryProvider(makeLabels());
+          }
+          labelsLayer.show = true;
+        }
+
+        activeKey = key;
         document.querySelectorAll("[data-layer]").forEach(function (btn) {
           btn.classList.toggle("active", btn.getAttribute("data-layer") === key);
         });
-
-        // 卫星/混合时容器偏深色，街道偏浅灰
-        document.getElementById("map").style.background =
-          key === "streets" ? "#e8eaed" : "#1a2330";
-
-        resolveStyle(key)
-          .then(function (style) {
-            map.setStyle(style);
-          })
-          .catch(function (err) {
-            console.error(err);
-            activeLayer = prev;
-            document.querySelectorAll("[data-layer]").forEach(function (btn) {
-              btn.classList.toggle("active", btn.getAttribute("data-layer") === prev);
-            });
-            showToast("图层切换失败");
-          });
+        scene.requestRender();
       }
 
       document.querySelectorAll("[data-layer]").forEach(function (btn) {
@@ -582,15 +587,103 @@
         });
       });
 
-      // ========== 点击坐标 ==========
-      map.on("click", function (e) {
-        var lng = e.lngLat.lng;
-        var lat = e.lngLat.lat;
-        setMarker(lng, lat);
-        showToast(
-          "<strong>坐标</strong><br/>" + lng.toFixed(6) + ", " + lat.toFixed(6)
-        );
+      // ========== 按需地形 ==========
+      var terrainOn = false;
+      var terrainBtn = document.getElementById("terrainBtn");
+      terrainBtn.addEventListener("click", function () {
+        var hasIon =
+          CESIUM_ION_TOKEN && CESIUM_ION_TOKEN !== "YOUR_CESIUM_ION_TOKEN";
+        if (!terrainOn && !hasIon) {
+          showToast("请先配置有效的 Cesium Ion Token");
+          return;
+        }
+        terrainOn = !terrainOn;
+        terrainBtn.classList.toggle("active", terrainOn);
+        terrainBtn.setAttribute("aria-pressed", String(terrainOn));
+
+        if (terrainOn) {
+          Cesium.createWorldTerrainAsync({
+            requestVertexNormals: false,
+            requestWaterMask: false,
+          })
+            .then(function (provider) {
+              viewer.terrainProvider = provider;
+              scene.requestRender();
+            })
+            .catch(function () {
+              terrainOn = false;
+              terrainBtn.classList.remove("active");
+              terrainBtn.setAttribute("aria-pressed", "false");
+              showToast("地形加载失败");
+            });
+        } else {
+          viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          scene.requestRender();
+        }
       });
+
+      // ========== 初始视角 ==========
+      camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(104.0, 28.0, 1.8e7),
+        orientation: {
+          heading: 0,
+          pitch: Cesium.Math.toRadians(-90),
+          roll: 0,
+        },
+      });
+
+      globe.tileLoadProgressEvent.addEventListener(function (queued) {
+        if (queued === 0) hideLoading();
+      });
+      setTimeout(hideLoading, 2500);
+      scene.postRender.addEventListener(function onFirst() {
+        hideLoading();
+        scene.postRender.removeEventListener(onFirst);
+      });
+
+      // ========== 点击坐标 ==========
+      var handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+      var pickEntity = null;
+
+      function setMarker(lon, lat, label) {
+        if (pickEntity) viewer.entities.remove(pickEntity);
+        pickEntity = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          point: {
+            pixelSize: 9,
+            color: Cesium.Color.fromCssColorString("#ea4335"),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+          label: label
+            ? {
+                text: label,
+                font: "13px " + getComputedStyle(document.body).fontFamily,
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromCssColorString("#202124"),
+                outlineWidth: 3,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -12),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              }
+            : undefined,
+        });
+        scene.requestRender();
+      }
+
+      handler.setInputAction(function (click) {
+        var cartesian = camera.pickEllipsoid(click.position, globe.ellipsoid);
+        if (!cartesian) return;
+        var carto = Cesium.Cartographic.fromCartesian(cartesian);
+        var lon = Cesium.Math.toDegrees(carto.longitude);
+        var lat = Cesium.Math.toDegrees(carto.latitude);
+        setMarker(lon, lat);
+        showToast(
+          "<strong>坐标</strong><br/>" + lon.toFixed(6) + ", " + lat.toFixed(6)
+        );
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
       // ========== Nominatim 搜索 ==========
       var searchForm = document.getElementById("searchForm");
@@ -602,6 +695,24 @@
       function closeResults() {
         searchResults.classList.remove("open");
         searchResults.innerHTML = "";
+      }
+
+      function flyTo(lon, lat, label) {
+        var short = label ? String(label).split(",")[0] : "";
+        camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, 8000),
+          orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+          },
+          duration: 1.4,
+          complete: function () {
+            scene.requestRender();
+          },
+        });
+        setMarker(lon, lat, short);
+        if (short) showToast("<strong>" + short + "</strong>");
       }
 
       function renderResults(items) {
@@ -692,11 +803,22 @@
         );
       });
 
-      // 预取 OpenFreeMap style，加速混合图切换
-      fetchLibertyStyle().catch(function () {});
+      window.addEventListener("resize", function () {
+        scene.requestRender();
+      });
+
+      ["pointerdown", "wheel", "touchstart"].forEach(function (evt) {
+        scene.canvas.addEventListener(
+          evt,
+          function () {
+            scene.requestRender();
+          },
+          { passive: true }
+        );
+      });
 
       window.__mapApp = {
-        map: map,
+        viewer: viewer,
         switchLayer: switchLayer,
         flyTo: flyTo,
         showToast: showToast,
