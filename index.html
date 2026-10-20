@@ -56,7 +56,6 @@
         linear-gradient(165deg, #243044 0%, #1a2330 42%, #121820 100%);
     }
 
-    .cesium-viewer-bottom,
     .cesium-viewer-animationContainer,
     .cesium-viewer-timelineContainer,
     .cesium-viewer-fullscreenContainer,
@@ -67,8 +66,8 @@
 
     .cesium-credit-logoContainer,
     .cesium-credit-textContainer {
-      opacity: 0.5;
-      transform: scale(0.82);
+      opacity: 0.45;
+      transform: scale(0.78);
       transform-origin: bottom left;
     }
 
@@ -81,46 +80,41 @@
 
     .ui > * { pointer-events: auto; }
 
-    /* 顶部一条工具带：品牌 + 搜索 + 定位，避免多个悬浮卡片 */
-    .chrome {
-      position: absolute;
-      top: calc(14px + var(--safe-top));
-      left: calc(14px + var(--safe-left));
-      right: calc(14px + var(--safe-right));
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 14px 18px;
-      max-width: 920px;
-      animation: rise 0.45s ease both;
-    }
-
+    /* 品牌：左上角水印，不挤占搜索行 */
     .brand {
+      position: absolute;
+      top: calc(16px + var(--safe-top));
+      left: calc(18px + var(--safe-left));
+      z-index: 2;
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: clamp(1.45rem, 2.4vw, 1.85rem);
-      letter-spacing: -0.04em;
+      font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+      letter-spacing: -0.045em;
       line-height: 1;
       color: #fff;
-      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.5);
       white-space: nowrap;
       user-select: none;
+      animation: rise 0.4s ease both;
     }
 
-    .brand span {
-      color: var(--accent);
-    }
+    .brand span { color: var(--accent); }
 
+    /* 搜索：顶部居中一条，定位嵌进同一控件 */
     .search-wrap {
-      position: relative;
-      min-width: 0;
-      max-width: 440px;
-      justify-self: stretch;
+      position: absolute;
+      top: calc(14px + var(--safe-top));
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(420px, calc(100vw - 36px - var(--safe-left) - var(--safe-right)));
+      z-index: 3;
+      animation: searchIn 0.45s ease both;
     }
 
     .search-box {
       display: flex;
       align-items: stretch;
+      height: 46px;
       background: var(--paper-solid);
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -129,7 +123,7 @@
     }
 
     .search-box:focus-within {
-      border-color: rgba(194, 59, 34, 0.55);
+      border-color: rgba(194, 59, 34, 0.5);
     }
 
     .search-box input {
@@ -139,45 +133,44 @@
       outline: none;
       background: transparent;
       color: var(--ink);
-      font: 500 0.95rem/1.4 var(--font-body);
-      padding: 11px 14px;
+      font: 500 0.95rem/1.3 var(--font-body);
+      padding: 0 14px;
     }
 
     .search-box input::placeholder { color: var(--ink-soft); }
+
+    .search-box .icon-btn {
+      width: 46px;
+      height: 46px;
+      border: none;
+      border-left: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--ink-soft);
+      flex-shrink: 0;
+    }
+
+    .search-box .icon-btn:hover {
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    .search-box .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .search-box .icon-btn svg { width: 18px; height: 18px; }
 
     .search-box button[type="submit"] {
       border: none;
       background: var(--ink);
       color: #fff;
-      padding: 0 18px;
+      padding: 0 16px;
       font: 600 0.875rem var(--font-body);
       cursor: pointer;
+      flex-shrink: 0;
       transition: background 0.15s;
     }
 
-    .search-box button[type="submit"]:hover {
-      background: var(--accent);
-    }
-
-    .icon-btn {
-      width: 44px;
-      height: 44px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--paper-solid);
-      box-shadow: var(--lift);
-      color: var(--ink);
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-
-    .icon-btn:hover { background: var(--paper); }
-    .icon-btn:active { transform: translateY(1px); }
-    .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .icon-btn svg { width: 18px; height: 18px; }
+    .search-box button[type="submit"]:hover { background: var(--accent); }
 
     .search-results {
       position: absolute;
@@ -219,31 +212,29 @@
       font-weight: 400;
     }
 
-    /* 底栏分段控件：像地图产品，而不是右侧卡片堆 */
-    .dock {
+    /* 底栏：图层一组 + 效果一组，桌面不换行 */
+    .footer {
       position: absolute;
       left: 50%;
-      bottom: calc(18px + var(--safe-bottom));
+      bottom: calc(16px + var(--safe-bottom));
       transform: translateX(-50%);
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      justify-content: center;
-      gap: 2px;
-      padding: 4px;
-      background: var(--paper-solid);
-      border: 1px solid var(--line);
-      border-radius: calc(var(--radius) + 2px);
-      box-shadow: var(--lift);
-      animation: rise 0.5s 0.05s ease both;
-      max-width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+      gap: 8px;
+      max-width: calc(100vw - 24px - var(--safe-left) - var(--safe-right));
+      z-index: 3;
+      animation: dockIn 0.45s 0.04s ease both;
     }
 
-    .dock-sep {
-      width: 1px;
-      height: 22px;
-      background: var(--line);
-      margin: 0 4px;
+    .dock {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px;
+      background: var(--paper-solid);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--lift);
       flex-shrink: 0;
     }
 
@@ -252,8 +243,8 @@
       border: none;
       background: transparent;
       color: var(--ink-soft);
-      font: 600 0.84rem/1 var(--font-body);
-      padding: 10px 14px;
+      font: 600 0.82rem/1 var(--font-body);
+      padding: 9px 13px;
       border-radius: 6px;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
@@ -270,16 +261,16 @@
 
     .tog.active {
       color: var(--accent);
-      background: rgba(194, 59, 34, 0.08);
+      background: rgba(194, 59, 34, 0.1);
     }
 
     .coord-toast {
       position: absolute;
       left: 50%;
-      bottom: calc(72px + var(--safe-bottom));
-      transform: translateX(-50%) translateY(8px);
-      max-width: min(92vw, 380px);
-      padding: 10px 14px;
+      bottom: calc(68px + var(--safe-bottom));
+      transform: translateX(-50%) translateY(6px);
+      max-width: min(90vw, 360px);
+      padding: 9px 13px;
       background: var(--paper-solid);
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -287,10 +278,11 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s, transform 0.2s;
-      font-size: 0.875rem;
-      line-height: 1.45;
+      font-size: 0.84rem;
+      line-height: 1.4;
       text-align: center;
       color: var(--ink);
+      z-index: 4;
     }
 
     .coord-toast.show {
@@ -305,16 +297,21 @@
       color: var(--accent);
     }
 
+    /* 操作提示：短暂出现后淡出，不与底栏抢位 */
     .hint {
       position: absolute;
-      left: calc(16px + var(--safe-left));
-      bottom: calc(22px + var(--safe-bottom));
+      left: 50%;
+      bottom: calc(68px + var(--safe-bottom));
+      transform: translateX(-50%);
       font-size: 0.72rem;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.72);
-      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
-      max-width: min(200px, 28vw);
-      animation: rise 0.55s 0.12s ease both;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.78);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+      white-space: nowrap;
+      pointer-events: none;
+      animation: hintFade 4.5s ease both;
+      z-index: 2;
     }
 
     .loading {
@@ -368,8 +365,23 @@
     }
 
     @keyframes rise {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes searchIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    @keyframes dockIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    @keyframes hintFade {
+      0%, 55% { opacity: 1; }
+      100% { opacity: 0; visibility: hidden; }
     }
 
     @keyframes loadSlide {
@@ -377,25 +389,61 @@
       100% { transform: translateX(320%); }
     }
 
-    @keyframes dockIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    /* 避开 Cesium 左下角版权 */
+    .cesium-viewer-bottom {
+      display: block !important;
+      bottom: 4px !important;
+      left: 4px !important;
+      max-width: 40vw;
+      pointer-events: none;
     }
-    .dock { animation: dockIn 0.5s 0.05s ease both; }
 
     @media (max-width: 720px) {
-      .chrome {
-        grid-template-columns: 1fr auto;
-        gap: 10px;
-      }
       .brand {
-        grid-column: 1 / -1;
-        font-size: 1.55rem;
+        top: calc(12px + var(--safe-top));
+        left: calc(14px + var(--safe-left));
+        font-size: 1.2rem;
       }
-      .search-wrap { max-width: none; }
+
+      /* 手机：搜索下移，避开品牌；定位仍嵌在搜索条内 */
+      .search-wrap {
+        top: calc(48px + var(--safe-top));
+        width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+      }
+
+      .search-box { height: 44px; }
+      .search-box .icon-btn { width: 44px; height: 44px; }
+      .search-box button[type="submit"] { padding: 0 14px; }
+
+      .footer {
+        bottom: calc(12px + var(--safe-bottom));
+        gap: 6px;
+        width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+        max-width: none;
+        justify-content: center;
+      }
+
+      .dock {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .dock::-webkit-scrollbar { display: none; }
+
+      .seg, .tog { padding: 8px 11px; font-size: 0.78rem; }
+
+      .coord-toast { bottom: calc(62px + var(--safe-bottom)); }
       .hint { display: none; }
-      .coord-toast { bottom: calc(86px + var(--safe-bottom)); }
-      .seg, .tog { padding: 9px 11px; font-size: 0.8rem; }
+    }
+
+    @media (min-width: 721px) {
+      /* 宽屏时品牌与居中搜索不重叠：给搜索留出左右安全区 */
+      .search-wrap {
+        width: min(400px, calc(100vw - 280px));
+      }
     }
   </style>
 </head>
@@ -409,39 +457,39 @@
   </div>
 
   <div class="ui">
-    <header class="chrome">
-      <div class="brand" aria-label="map.cq.je">map<span>.</span>cq.je</div>
+    <div class="brand" aria-label="map.cq.je">map<span>.</span>cq.je</div>
 
-      <div class="search-wrap">
-        <form class="search-box" id="searchForm" autocomplete="off">
-          <input
-            id="searchInput"
-            type="search"
-            placeholder="搜索地点"
-            enterkeyhint="search"
-            aria-label="搜索地点"
-          />
-          <button type="submit">搜索</button>
-        </form>
-        <div class="search-results" id="searchResults" role="listbox"></div>
-      </div>
+    <div class="search-wrap">
+      <form class="search-box" id="searchForm" autocomplete="off">
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="搜索地点"
+          enterkeyhint="search"
+          aria-label="搜索地点"
+        />
+        <button type="button" class="icon-btn" id="locateBtn" title="定位当前位置" aria-label="定位当前位置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+            <circle cx="12" cy="12" r="8"/>
+          </svg>
+        </button>
+        <button type="submit">搜索</button>
+      </form>
+      <div class="search-results" id="searchResults" role="listbox"></div>
+    </div>
 
-      <button type="button" class="icon-btn" id="locateBtn" title="定位当前位置" aria-label="定位当前位置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
-          <circle cx="12" cy="12" r="8"/>
-        </svg>
-      </button>
-    </header>
-
-    <nav class="dock" aria-label="图层与效果">
-      <button type="button" class="seg active" data-layer="satellite">卫星</button>
-      <button type="button" class="seg" data-layer="osm">街道</button>
-      <button type="button" class="seg" data-layer="topo">地形图</button>
-      <div class="dock-sep" aria-hidden="true"></div>
-      <button type="button" class="tog" id="terrainBtn" aria-pressed="false">三维地形</button>
-      <button type="button" class="tog active" id="atmosBtn" aria-pressed="true">大气</button>
-    </nav>
+    <div class="footer">
+      <nav class="dock" aria-label="底图">
+        <button type="button" class="seg active" data-layer="satellite">卫星</button>
+        <button type="button" class="seg" data-layer="osm">街道</button>
+        <button type="button" class="seg" data-layer="topo">地形图</button>
+      </nav>
+      <nav class="dock" aria-label="效果">
+        <button type="button" class="tog" id="terrainBtn" aria-pressed="false">地形</button>
+        <button type="button" class="tog active" id="atmosBtn" aria-pressed="true">大气</button>
+      </nav>
+    </div>
 
     <div class="hint">拖拽旋转 · 滚轮缩放 · 右键倾斜</div>
     <div class="coord-toast" id="coordToast" role="status"></div>
