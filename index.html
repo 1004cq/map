@@ -658,18 +658,15 @@
         }
       });
 
-      // ========== 初始视角：对准东亚，略倾斜（lookAt 保证球在画面中） ==========
-      var lookTarget = Cesium.Cartesian3.fromDegrees(105.0, 32.0);
-      camera.lookAt(
-        lookTarget,
-        new Cesium.HeadingPitchRange(
-          Cesium.Math.toRadians(20),
-          Cesium.Math.toRadians(-32),
-          1.55e7
-        )
-      );
-      // 解除 lookAt 锁定，恢复自由旋转/缩放
-      camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+      // ========== 初始视角：相机在东亚上空正对地心，地球居中 ==========
+      camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(104.0, 28.0, 2.0e7),
+        orientation: {
+          heading: 0,
+          pitch: -Cesium.Math.PI_OVER_TWO,
+          roll: 0,
+        },
+      });
 
       globe.tileLoadProgressEvent.addEventListener(function (queued) {
         if (queued === 0) hideLoading();
